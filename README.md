@@ -54,10 +54,13 @@ TBD
 
 - [x] TTL configuration
 - [x] Custom tags for Announcer
-- [ ] Tags filters for Resolver
 - [x] Multi DC configuration
-- [ ] Process Consul HTTP API errors/timeouts
+- [ ] Tags filters for Resolver
 - [ ] Package distribution
+- [ ] Unit tests for consul query decode
+- [ ] EndToEnd integration tests
+- [ ] Debug level log messages for all Consul server queries
+- [ ] Process Consul HTTP API errors/timeouts
 
 (see also numerous "XXX" comments in code)
 
