@@ -55,7 +55,7 @@ TBD
 - [x] TTL configuration
 - [x] Custom tags for Announcer
 - [x] Multi DC configuration
-- [ ] Tags filters for Resolver
+- [x] Tags filters for Resolver
 - [ ] Package distribution
 - [ ] Unit tests for consul query decode
 - [ ] EndToEnd integration tests

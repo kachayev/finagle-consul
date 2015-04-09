@@ -52,7 +52,7 @@ class ConsulAnnouncer extends Announcer {
   // xxx: cleanup code for JSON encoding
   def send(hosts: String, node: ConsulNode)(f: HttpResponse => Boolean) = {
     val client = Http.newClient(hosts)
-    val tags = (node.service.tags + "finagle").map(escape(_)).mkString(", ")
+    val tags = node.service.tags.map(escape(_)).mkString(", ")
     val dc = node.dc.map(escape(_)).getOrElse("null")
     val payload = s"""{
       "Datacenter": $dc,

@@ -41,7 +41,7 @@ class ConsulResolver extends Resolver {
     q.dc.map({ dc => List("dc" -> dc) }).getOrElse(List.empty[(String, String)])
 
   def queryTags(q: ConsulQuery): List[(String, String)] =
-    q.tags map { t => ("tag" -> t) }
+    q.tags.toList map { t => ("tag" -> t) }
 
   def catalogPath(q: ConsulQuery) = {
     val path = s"/v1/catalog/service/$q.name"
