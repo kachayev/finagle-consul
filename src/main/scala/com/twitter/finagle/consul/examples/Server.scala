@@ -26,7 +26,7 @@ class RandomNumberServer {
 
 object Server extends App {
 
-  val path = "consul!127.0.0.1:8500!RandomNumber"
+  val path = "consul!127.0.0.1:8500!/RandomNumber?tag=prod&dc=dc1&ttl=45"
   val rn = new RandomNumberServer
 
   println(s"Run server: ${rn.serverId}")

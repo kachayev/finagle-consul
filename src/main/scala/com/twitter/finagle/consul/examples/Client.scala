@@ -34,7 +34,7 @@ class RandomNumberClient(val path: String) {
 
 object Client extends App {
 
-  val path = "consul!localhost:8500!RandomNumber"
+  val path = "consul!localhost:8500!/RandomNumber?tag=prod&dc=dc1&ttl=45"
   val rn = new RandomNumberClient(path)
 
   println(s"Run CLIENT: ${rn.id}")
