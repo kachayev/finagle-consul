@@ -49,7 +49,8 @@ class ConsulAnnouncer extends Announcer {
 
   // xxx: implement custom health check(s)
   // xxx: memorize newClient operation
-  def register(hosts: String, node: ConsulNode): Future[Boolean] = {
+  // xxx: cleanup code for JSON encoding
+  def send(hosts: String, node: ConsulNode)(f: HttpResponse => Boolean) = {
     val client = Http.newClient(hosts)
     val tags = (node.service.tags + "finagle").map(escape(_)).mkString(", ")
     val dc = node.dc.map(escape(_)).getOrElse("null")
@@ -72,13 +73,15 @@ class ConsulAnnouncer extends Announcer {
         "Ttl": "${node.service.ttl.getOrElse(infiniteTTL)}s"
       }
     }"""
+
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, registerPath)
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
-    logger.info(s"Register consul service ${node.service}")
-    // xxx: timeout?
-    // xxx: request error?
-    client.toService(req) map { resp =>
-      println(resp)
+    client.toService(req) map f
+  }
+
+  def register(hosts: String, node: ConsulNode): Future[Boolean] = {
+    send(hosts, node) { resp =>
+      logger.info(s"Register consul service ${node.service}: $resp")
       val wasSuccessful = resp.getStatus.getCode == 200
       if(wasSuccessful) {
         node.service.ttl match {
@@ -98,37 +101,15 @@ class ConsulAnnouncer extends Announcer {
     }
   }
 
-  // xxx: code duplication!
-  def prolongate(hosts: String, node: ConsulNode): Future[Unit] = {
-    val payload = s"""{
-      "Node": "${node.name}",
-      "Address": "${node.address}",
-      "Service": {
-        "ID": "${node.service.id}",
-        "Tags": ["finagle"],
-        "Service": "${node.service.name}",
-        "Address": "${node.service.address}",
-        "Port": ${node.service.port}
-      },
-      "Check": {
-        "Node": "${node.name}",
-        "CheckID": "service:${node.service.id}",
-        "Status": "passing",
-        "ServiceID": "${node.service.id}",
-        "Ttl": "60s"
-      }
-    }"""
-    val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, registerPath)
-    req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
-    // xxx: debug log only
-    logger.info(s"Prolongate consul service ${node.service}")
-    val client = Http.newClient(hosts)
-    // xxx: timeout?
-    // xxx: response error?
-    client.toService(req) map { resp => () }
+  def prolongate(hosts: String, node: ConsulNode): Future[Boolean] = {
+    send(hosts, node) { resp =>
+      // xxx: debug log only
+      logger.info(s"Prolongate consul service ${node.service}: $resp")
+      resp.getStatus.getCode == 200
+    }
   }
 
-  // xxx: memoize
+  // xxx: memoize newClient operation
   def deregister(hosts: String, nodeName: String, serviceId: String): Future[Unit] = {
     val payload = """{
       "Node": "$nodeName",
@@ -138,11 +119,10 @@ class ConsulAnnouncer extends Announcer {
     val client = Http.newClient(hosts) 
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, deregisterPath)
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
-    logger.info(s"Deregister consul service $serviceId")
     client.toService(req) map { resp =>
       // xxx: debug log level
-      logger.info(s"Deregister $serviceId response $resp")
-      // remove process that periodically update TTL on Consul
+      logger.info(s"Deregister consul service $serviceId: $resp")
+      // remove task (process?) that periodically update TTL on Consul
       synchronized {
         timerTasks.get(serviceId) match {
           case Some(ttask) => ttask.close()
