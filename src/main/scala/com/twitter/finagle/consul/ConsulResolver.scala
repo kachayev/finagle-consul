@@ -57,8 +57,6 @@ class ConsulResolver extends Resolver {
     new InetSocketAddress(address, location.ServicePort)
   }
 
-  // xxx: implement datacenter option support
-  // xxx: implement tags option support (filtering)
   // xxx: memoize newClient
   def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
     val client = Http.newClient(hosts)

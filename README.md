@@ -48,7 +48,41 @@ Server:sgN72ffoxX; Client:7spceT1R8f; Req:42; Resp:ZJlzj
 
 ### Consul path definition
 
-TBD
+To announce your service use following scheme:
+
+```consul!host1:port1,host2:port2,...!serviceName?additional=params```
+
+For example,
+
+```scala
+val server = Http.serveAndAnnounce("consul!127.0.0.1:8500!/RandomNumber")
+val client = Http.newService("consul!127.0.0.1:8500!/RandomNumber")
+```
+
+Additional params:
+
+```scala
+scala> import com.twitter.finagle.consul.ConsulQuery
+import com.twitter.finagle.consul.ConsulQuery
+
+scala> ConsulQuery.decodeString("/RandomNumber?tag=prod&tag=tracing&dc=dc1&ttl=45")
+res1: Option[com.twitter.finagle.consul.ConsulQuery] = Some(ConsulQuery(RandomNumber,Some(45.seconds),Set(prod, tracing, finagle),Some(dc1)))
+```
+
+Few notes:
+
+1. You can specify name as URL, but all "/" will be replaced with ".":
+
+``scala
+scala> ConsulQuery.decodeString("/prod/cluster22/RandomNumber?ttl=45").get.name
+res5: String = prod.cluster22.RandomNumber
+```
+
+2. TTL is defined in seconds. Default TTL value = 100000000 seconds (~3 years). Specifying TTL will register TTL-based health-check and will schedule periodical updates for health check status (now this is only one reasonable way to manipulate with service visibility in the cluster).
+
+3. Tag "finagle" will be added automatically (so you can see all service registered from Finagle Consul in Consul Web UI).
+
+4. Specifying datacenter that is not known yet to Consul cluster will lead to error (Consul will reject registeration request).
 
 ### TODO
 
