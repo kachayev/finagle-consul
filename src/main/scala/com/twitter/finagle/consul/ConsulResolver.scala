@@ -41,14 +41,15 @@ class ConsulResolver extends Resolver {
   def catalogPath(name: String) = s"/v1/catalog/service/$name"
 
   def locationToAddr(location: ServiceLocation): InetSocketAddress = {
-    val address = if("" == location.ServiceAddress) location.Address
-                  else location.ServiceAddress
+    val address =
+      if("" == location.ServiceAddress) location.Address
+      else location.ServiceAddress
     new InetSocketAddress(address, location.ServicePort)
   }
 
   // xxx: implement datacenter option support
   // xxx: implement tags option support (filtering)
-  // xxx: memoize client
+  // xxx: memoize newClient
   def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
     val client = Http.newClient(hosts)
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q.name))
@@ -67,7 +68,8 @@ class ConsulResolver extends Resolver {
   private val timer = DefaultTimer.twitter
   private val futurePool = FuturePool.unboundedPool
 
-  // xxx: watch changes (?)
+  // investigate: is there any way to watch changes using HTTP API?
+  // potentially, watching change will work much better than periodic requests
   def addrOf(hosts: String, query: ConsulQuery): Var[Addr] =
     Var.async(Addr.Pending: Addr) { u =>
       readCatalog(hosts, query) onSuccess { (addrs: SAddresses) =>
@@ -75,7 +77,7 @@ class ConsulResolver extends Resolver {
       }
       query.ttl match {
         case Some(ttl) =>
-          // is there any reason for keeping Updater private?
+          // is there any reason for keeping Updater private for "finagle" package?
           val updater = new Updater[Unit] {
             val one = Seq(())
             // just perform one update at a time

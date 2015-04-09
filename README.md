@@ -52,15 +52,19 @@ TBD
 
 ### TODO
 
-- [ ] TTL configuration
-- [ ] Custom tags for Announcer
+- [x] TTL configuration
+- [x] Custom tags for Announcer
 - [ ] Tags filters for Resolver
-- [ ] Multi DC configuration
+- [x] Multi DC configuration
 - [ ] Process Consul HTTP API errors/timeouts
 - [ ] Package distribution
+
+(see also numerous "XXX" comments in code)
 
 ### Known issues
 
 - "deregister" HTTP command works a bit unpredictably
 
 - is any way to watch changes from HTTP API endpoint (?)
+
+- registering service for unknown datacenter leads to silent error
