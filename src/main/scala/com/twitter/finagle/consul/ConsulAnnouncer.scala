@@ -43,18 +43,23 @@ class ConsulAnnouncer extends Announcer {
   private val futurePool = FuturePool.unboundedPool
   private val timerTasks = MutableMap.empty[String, TimerTask]
 
-  // xxx: implement optional datacenter param
-  // xxx: implement custom tags
-  // xxx: implement health check
-  // xxx: implement multi-hosts support
+  val infiniteTTL = 100000000 // ~3 years
+
+  def escape(s: String): String = "\"" + s + "\""
+
+  // xxx: implement custom health check(s)
+  // xxx: memorize newClient operation
   def register(hosts: String, node: ConsulNode): Future[Boolean] = {
     val client = Http.newClient(hosts)
+    val tags = (node.service.tags + "finagle").map(escape(_)).mkString(", ")
+    val dc = node.dc.map(escape(_)).getOrElse("null")
     val payload = s"""{
+      "Datacenter": $dc,
       "Node": "${node.name}",
       "Address": "${node.address}",
       "Service": {
         "ID": "${node.service.id}",
-        "Tags": ["finagle"],
+        "Tags": [$tags],
         "Service": "${node.service.name}",
         "Address": "${node.service.address}",
         "Port": ${node.service.port}
@@ -64,24 +69,29 @@ class ConsulAnnouncer extends Announcer {
         "CheckID": "service:${node.service.id}",
         "Status": "passing",
         "ServiceID": "${node.service.id}",
-        "Ttl": "30s"
+        "Ttl": "${node.service.ttl.getOrElse(infiniteTTL)}s"
       }
     }"""
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, registerPath)
-    val ttl = 55.seconds // xxx: should be configurable
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
     logger.info(s"Register consul service ${node.service}")
     // xxx: timeout?
     // xxx: request error?
     client.toService(req) map { resp =>
+      println(resp)
       val wasSuccessful = resp.getStatus.getCode == 200
       if(wasSuccessful) {
-        val ttask = timer.schedule(ttl.fromNow, ttl) {
-          // reregister service to deal with health-check TTL
-          futurePool(prolongate(hosts, node))
-        }
-        synchronized {
-          timerTasks += (node.service.id -> ttask)
+        node.service.ttl match {
+          case None => ()
+          case Some(ttl) => {
+            val ttask = timer.schedule(ttl.fromNow, ttl) {
+              // reregister service to deal with health-check TTL
+              futurePool(prolongate(hosts, node))
+            }
+            synchronized {
+              timerTasks += (node.service.id -> ttask)
+            }
+          }
         }
       }
       wasSuccessful
@@ -118,13 +128,14 @@ class ConsulAnnouncer extends Announcer {
     client.toService(req) map { resp => () }
   }
 
+  // xxx: memoize
   def deregister(hosts: String, nodeName: String, serviceId: String): Future[Unit] = {
     val payload = """{
       "Node": "$nodeName",
       "ServiceID": "$serviceId",
       "CheckID": "service:$serviceId"
     }"""
-    val client = Http.newClient(hosts) // xxx: memoize
+    val client = Http.newClient(hosts) 
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, deregisterPath)
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
     logger.info(s"Deregister consul service $serviceId")

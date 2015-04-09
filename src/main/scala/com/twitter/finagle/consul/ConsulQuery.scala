@@ -22,7 +22,7 @@ object ConsulQuery {
     val params = q.getParameters.asScala
     val ttl = params.get("ttl").map(readTTL)
     val tags = params.get("tag").map(_.asScala.toSet).getOrElse(Set.empty[String])
-    val dc = params.get("dc").map(_.asScala.head)
+    val dc = params.get("dc").map(_.get(0))
     Some(ConsulQuery(name, ttl, tags, dc))
   }
 
