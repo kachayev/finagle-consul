@@ -13,7 +13,6 @@ import org.jboss.netty.buffer.ChannelBuffers
 import org.jboss.netty.buffer.ChannelBufferInputStream
 import java.nio.charset.StandardCharsets._
 import java.net.{SocketAddress, InetSocketAddress}
-import java.util.concurrent.TimeUnit.SECONDS
 import java.util.logging.Logger
 
 import org.json4s._
@@ -36,6 +35,9 @@ class ConsulResolver extends Resolver {
   implicit val format = org.json4s.DefaultFormats
   val logger = Logger.getLogger(getClass.getName)
 
+  type Addresses = Seq[InetSocketAddress]
+  type SAddresses = Seq[SocketAddress]
+
   def catalogPath(name: String) = s"/v1/catalog/service/$name"
 
   def locationToAddr(location: ServiceLocation): InetSocketAddress = {
@@ -45,17 +47,19 @@ class ConsulResolver extends Resolver {
   }
 
   // xxx: implement datacenter option support
-  // xxx: implement multiple hosts
-  def readCatalog(hosts: String, name: String): Future[List[InetSocketAddress]] = {
-    val client = Http.newClient(hosts) // xxx: memoize
-    val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, catalogPath(name))
+  // xxx: implement tags option support (filtering)
+  // xxx: memoize client
+  def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
+    val client = Http.newClient(hosts)
+    val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q.name))
     // xxx: timeout? 
     // xxx: error?
     client.toService(req) map { resp =>
       val output = new ChannelBufferInputStream(resp.getContent)
+      // xxx: JSON formatting error?
       val addrs = parse(output).extract[List[ServiceLocation]] map locationToAddr
       // xxx: debug log only
-      logger.info(s"Consul catalog lookup at $hosts to look for $name: $addrs")
+      logger.info(s"Consul catalog lookup at $hosts to look for ${q.name}: $addrs")
       addrs
     }
   }
@@ -63,22 +67,22 @@ class ConsulResolver extends Resolver {
   private val timer = DefaultTimer.twitter
   private val futurePool = FuturePool.unboundedPool
 
-  // xxx: in-memory cache
-  // xxx: watch changes
-  def addrOf(hosts: String, name: String, ttlOption: Option[Duration]): Var[Addr] =
+  // xxx: watch changes (?)
+  def addrOf(hosts: String, query: ConsulQuery): Var[Addr] =
     Var.async(Addr.Pending: Addr) { u =>
-      readCatalog(hosts, name) onSuccess { (addrs: Seq[SocketAddress]) =>
+      readCatalog(hosts, query) onSuccess { (addrs: SAddresses) =>
         u() = Addr.Bound(addrs.toSet)
       }
-      ttlOption match {
+      query.ttl match {
         case Some(ttl) =>
+          // is there any reason for keeping Updater private?
           val updater = new Updater[Unit] {
             val one = Seq(())
-            // Just perform one update at a time.
+            // just perform one update at a time
             protected def preprocess(elems: Seq[Unit]) = one
             protected def handle(unit: Unit) {
               // this is future pool, so it's ok to wait a bit
-              val addrs: Seq[SocketAddress] = Await.result(readCatalog(hosts, name))
+              val addrs: Seq[SocketAddress] = Await.result(readCatalog(hosts, query))
               u() = Addr.Bound(addrs.toSet)
             }
           }
@@ -91,13 +95,13 @@ class ConsulResolver extends Resolver {
     }
 
   def bind(arg: String): Var[Addr] = arg.split("!") match {
-    // consul!host:8500!/name?dc=&ttl=&tags=&
-    case Array(hosts, name) =>
-      addrOf(hosts, name, Some(10.seconds))
-
-    // consul!host:8500!name|datacenter
-    case Array(hosts, name, dc) =>
-      addrOf(hosts, name, None)
+    // consul!host:8500!/name?dc=DC1ttl=10&tag=prod&tag=trace
+    case Array(hosts, query) =>
+      ConsulQuery.decodeString(query) match {
+        case Some(q) => addrOf(hosts, q)
+        case None =>
+          throw new ConsulResolverException("Invalid address \"%s\"".format(arg))  
+      }
 
     case _ =>
       throw new ConsulResolverException("Invalid address \"%s\"".format(arg))
