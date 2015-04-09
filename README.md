@@ -10,6 +10,8 @@ Service discovery for Finagle cluster with Consul. Multi DC, custom health check
 
 **Warning! This is still BETA.**
 
+![Consul Web UI](https://s3.amazonaws.com/attendify-assets/code/Screen+Shot+2015-04-08+at+10.24.22+PM.png)
+
 ### QuickStart
 
 Install and run Consul (see [docs](https://www.consul.io/intro/getting-started/install.html) for more information):
@@ -29,8 +31,6 @@ INFO: Register consul service ConsulService(3fc29cfa-75f6-4b59-8f2f-591c893a0f13
 ```
 
 You can now check list of registered services in [Consul Web UI](https://www.consul.io/intro/getting-started/ui.html).
-
-![Consul Web UI](https://dl-web.dropbox.com/get/ConsulUI.png?_subject_uid=15709793&w=AADjbDUK1Ox7lL7aUbLOSAnW8eBl1McFGi4EG1mGOyQ61w)
 
 Run example client:
 
@@ -73,18 +73,18 @@ res1: Option[com.twitter.finagle.consul.ConsulQuery] = Some(ConsulQuery(RandomNu
 
 Few notes:
 
-1. You can specify name as URL, but all "/" will be replaced with ".":
+1) You can specify name as URL, but all "/" will be replaced with ".":
 
 ```scala
 scala> ConsulQuery.decodeString("/prod/cluster22/RandomNumber?ttl=45").get.name
 res5: String = prod.cluster22.RandomNumber
 ```
 
-2. TTL is defined in seconds. Default TTL value = 100000000 seconds (~3 years). Specifying TTL will register TTL-based health-check and will schedule periodical updates for health check status (now this is only one reasonable way to manipulate with service visibility in the cluster).
+2) TTL is defined in seconds. Default TTL value = 100000000 seconds (~3 years). Specifying TTL will register TTL-based health-check and will schedule periodical updates for health check status (now this is only one reasonable way to manipulate with service visibility in the cluster).
 
-3. Tag "finagle" will be added automatically (so you can see all service registered from Finagle Consul in Consul Web UI).
+3) Tag "finagle" will be added automatically (so you can see all service registered from Finagle Consul in Consul Web UI).
 
-4. Specifying datacenter that is not known yet to Consul cluster will lead to error (Consul will reject registeration request).
+4) Specifying datacenter that is not known yet to Consul cluster will lead to error (Consul will reject registeration request).
 
 ### TODO
 
