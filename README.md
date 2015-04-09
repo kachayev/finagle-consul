@@ -50,7 +50,9 @@ Server:sgN72ffoxX; Client:7spceT1R8f; Req:42; Resp:ZJlzj
 
 To announce your service use following scheme:
 
-```consul!host1:port1,host2:port2,...!serviceName?additional=params```
+```scala
+consul!host1:port1,host2:port2,...!serviceName?additional=params
+```
 
 For example,
 
@@ -73,7 +75,7 @@ Few notes:
 
 1. You can specify name as URL, but all "/" will be replaced with ".":
 
-``scala
+```scala
 scala> ConsulQuery.decodeString("/prod/cluster22/RandomNumber?ttl=45").get.name
 res5: String = prod.cluster22.RandomNumber
 ```
