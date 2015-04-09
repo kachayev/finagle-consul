@@ -1,11 +1,10 @@
 package com.twitter.finagle.consul
 
-import com.twitter.finagle.Http
-import com.twitter.finagle.{Resolver, Addr}
+import com.twitter.finagle.{Http, Resolver, Addr}
+import com.twitter.finagle.http.Request
 import com.twitter.util._
 import com.twitter.finagle.util._
 import com.twitter.conversions.time._
-import com.twitter.finagle.util.DefaultTimer
 
 import org.jboss.netty.handler.codec.http._
 import org.jboss.netty.handler.codec.http.HttpVersion._
@@ -38,7 +37,18 @@ class ConsulResolver extends Resolver {
   type Addresses = Seq[InetSocketAddress]
   type SAddresses = Seq[SocketAddress]
 
-  def catalogPath(name: String) = s"/v1/catalog/service/$name"
+  def queryDatacenter(q: ConsulQuery): List[(String, String)] =
+    q.dc.map({ dc => List("dc" -> dc) }).getOrElse(List.empty[(String, String)])
+
+  def queryTags(q: ConsulQuery): List[(String, String)] =
+    q.tags map { t => ("tag" -> t) }
+
+  def catalogPath(q: ConsulQuery) = {
+    val path = s"/v1/catalog/service/$q.name"
+    val params = List(queryDatacenter(q), queryTags(q)).flatten
+    val query = Request.queryString(params: _*)
+    s"$path$query"
+  }
 
   def locationToAddr(location: ServiceLocation): InetSocketAddress = {
     val address =
@@ -52,7 +62,7 @@ class ConsulResolver extends Resolver {
   // xxx: memoize newClient
   def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
     val client = Http.newClient(hosts)
-    val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q.name))
+    val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q))
     // xxx: timeout? 
     // xxx: error?
     client.toService(req) map { resp =>
