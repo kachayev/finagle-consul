@@ -44,7 +44,7 @@ class ConsulResolver extends Resolver {
     q.tags.toList map { t => ("tag" -> t) }
 
   def catalogPath(q: ConsulQuery) = {
-    val path = s"/v1/catalog/service/$q.name"
+    val path = s"/v1/catalog/service/${q.name}"
     val params = List(queryDatacenter(q), queryTags(q)).flatten
     val query = Request.queryString(params: _*)
     s"$path$query"
@@ -112,10 +112,10 @@ class ConsulResolver extends Resolver {
       ConsulQuery.decodeString(query) match {
         case Some(q) => addrOf(hosts, q)
         case None =>
-          throw new ConsulResolverException("Invalid address \"%s\"".format(arg))  
+          throw new ConsulResolverException(s"Invalid address '$arg'")
       }
 
     case _ =>
-      throw new ConsulResolverException("Invalid address \"%s\"".format(arg))
+      throw new ConsulResolverException(s"Invalid address '$arg'")
   }  
 }
