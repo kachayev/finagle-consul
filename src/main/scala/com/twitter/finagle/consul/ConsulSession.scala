@@ -12,7 +12,7 @@ import org.json4s.jackson.JsonMethods._
 
 import java.util.logging.Logger
 
-class ConsulSession(client: Service[Request, Response], name: String, val ttl: Int = 10, val interval: Int = 5) {
+class ConsulSession(client: Service[Request, Response], opts: ConsulSession.CreateOptions) extends ConsulConstants {
 
   import ConsulSession._
 
@@ -24,13 +24,17 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
   val inChannel  = new LinkedBlockingQueue[Boolean]()
   val outChannel = new LinkedBlockingQueue[Boolean]()
 
-  def start() = {
-    heartbeat = Some(spawnHeartbeat(this))
+  def start(): Unit = {
+    heartbeat.getOrElse {
+      heartbeat = Some(spawnHeartbeat(this, opts.interval))
+    }
   }
 
-  def stop() = {
-    inChannel.offer(true)
-    outChannel.take()
+  def stop(): Unit = {
+    heartbeat foreach { _ =>
+      inChannel.offer(true)
+      outChannel.take()
+    }
     heartbeat = None
   }
 
@@ -38,22 +42,8 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
 
   def info(): Future[InfoReply] = {
     sessionId match {
-      case Some(id) =>
-        val req = Request(Method.Get, INFO_PATH.format(id))
-        req.setContentTypeJson()
-        client(req) transform {
-          case Return(reply) =>
-            val _info = parse(reply.contentString).extract[InfoReply]
-            if (_info == null) {
-              Future.exception(new SessionNotExists("Consul session is not exists"))
-            } else {
-              Future.value(_info)
-            }
-          case Throw(e) =>
-            Future.exception(e)
-        }
-      case None =>
-        Future.exception(new SessionNotExists("Consul session is not exists"))
+      case Some(id) => infoReq(id)
+      case None     => Future.exception(sessionNotFoundError)
     }
   }
 
@@ -83,7 +73,7 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
     }
   }
 
-  private[this] def spawnHeartbeat(me: ConsulSession) = new Thread("Consul Heartbeat") {
+  private[this] def spawnHeartbeat(me: ConsulSession, interval: Int) = new Thread("Consul Heartbeat") {
     setDaemon(true)
     start()
 
@@ -96,7 +86,7 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
       while(running) {
         try {
           if (cooldown) {
-            Thread.sleep(HEARTBEAT_COOLDOWN)
+            Thread.sleep(SESSION_HEARTBEAT_COOLDOWN)
             cooldown = false
           }
 
@@ -104,13 +94,12 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
             me.open()
           }
 
-          val gone = inChannel.poll(me.interval, TimeUnit.SECONDS)
+          val gone = inChannel.poll(interval, TimeUnit.SECONDS)
           if (gone == true) {
             running = false
             Try { me.close() }
             outChannel.offer(true)
           } else {
-            println(s"${me.sessionId}")
             me.renew() foreach { id =>
               me.log.info(s"Consul heartbeat tick $id")
             }
@@ -127,8 +116,8 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
   }
 
   private[this] def createReq() = {
-    val req  = Request(Method.Put, CREATE_PATH)
-    val body = s"""{ "LockDelay": "${ttl}s", "Name": "${name}", "Behavior": "delete", "TTL": "${ttl}s" }"""
+    val req  = Request(Method.Put, SESSION_CREATE_PATH)
+    val body = s"""{ "LockDelay": "${opts.lockDelay}s", "Name": "${opts.name}", "Behavior": "delete", "TTL": "${opts.ttl}s" }"""
     req.write(body)
     req.setContentTypeJson()
     val reply = Await.result(client(req))
@@ -139,7 +128,7 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
   }
 
   private[this] def destroyReq(id: String) = {
-    val req = Request(Method.Put, DESTROY_PATH.format(id))
+    val req = Request(Method.Put, SESSION_DESTROY_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
     if (reply.getStatusCode != 200) {
@@ -148,26 +137,42 @@ class ConsulSession(client: Service[Request, Response], name: String, val ttl: I
   }
 
   private[this] def renewReq(id: String) = {
-    val req = Request(Method.Put, RENEW_PATH.format(id))
+    val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
     if (reply.getStatusCode != 200) {
       throw new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
     }
   }
+
+  private[this] def infoReq(id: String): Future[InfoReply] = {
+    val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
+    req.setContentTypeJson()
+    client(req) transform {
+      case Return(reply) =>
+        val _info = parse(reply.contentString).extract[InfoReply]
+        if (_info == null) {
+          Future.exception(sessionNotFoundError(id))
+        } else {
+          Future.value(_info)
+        }
+      case Throw(e) =>
+        Future.exception(e)
+    }
+  }
+
+  private[this] def sessionNotFoundError(id: String) = new SessionNotFound(s"Consul session $id is not exists")
+  private[this] def sessionNotFoundError() = new SessionNotFound(s"Consul session is not exists")
 }
 
 object ConsulSession {
+  case class CreateOptions(name: String, ttl: Int = 10, interval: Int = 10, lockDelay: Int = 10)
+
   case class CreateReply(ID: String)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
 
-  class SessionNotExists(msg: String) extends RuntimeException(msg)
+  class SessionNotFound(msg: String) extends RuntimeException(msg)
   class InvalidResponse(msg: String) extends RuntimeException(msg)
 
-  val HEARTBEAT_COOLDOWN = 5000
 
-  val CREATE_PATH  = "/v1/session/create"
-  val DESTROY_PATH = "/v1/session/destroy/%s"
-  val RENEW_PATH   = "/v1/session/renew/%s"
-  val INFO_PATH    = "/v1/session/info/%s"
 }
