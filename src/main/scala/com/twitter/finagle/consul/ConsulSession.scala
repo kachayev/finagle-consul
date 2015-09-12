@@ -2,9 +2,8 @@ package com.twitter.finagle.consul
 
 import com.twitter.finagle.{Httpx, Service}
 import com.twitter.finagle.httpx.{ Request, Response, Method}
-import java.io.{StringReader, Reader}
 import com.twitter.util.{Await, NonFatal, Try, Future, Throw, Return}
-import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
+import java.util.concurrent.{LinkedBlockingQueue}
 import java.util.concurrent.TimeUnit
 
 import org.json4s._
@@ -19,11 +18,10 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   private[this] implicit val format = org.json4s.DefaultFormats
 
   val log = LoggerFactory.getLogger(getClass.getName)
-  private[this] var sessionId  = Option.empty[SessionId]
-  private[this] var heartbeat  = Option.empty[Thread]
-  private[this] var listeners  = List.empty[Listener]
-  private[this] val inChannel  = new LinkedBlockingQueue[Boolean]()
-  private[this] val outChannel = new LinkedBlockingQueue[Boolean]()
+  private[consul] var sessionId  = Option.empty[SessionId]
+  private[this]   var heartbeat  = Option.empty[Thread]
+  private[this]   var listeners  = List.empty[Listener]
+  private[this]   val inChannel  = new LinkedBlockingQueue[Boolean]()
 
   def start(): Unit = {
     heartbeat.getOrElse {
@@ -32,9 +30,9 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   def stop(): Unit = {
-    heartbeat foreach { _ =>
+    heartbeat foreach { th =>
       inChannel.offer(true)
-      outChannel.take()
+      th.join()
     }
     heartbeat = None
   }
@@ -62,28 +60,38 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[consul] def open() = {
+  private[consul] def open(): Unit = {
     synchronized {
       sessionId getOrElse {
         val reply = createReq()
         log.info("Consul session created {}", reply.ID)
         sessionId = Some(reply.ID)
-        listeners foreach { l => Try { l(reply.ID, true) } }
+        listeners foreach { l => muted[Unit]("Listener.call", () => l(reply.ID, true)) }
         sessionId
       }
     }
   }
 
-  private[consul] def close() = {
+  private[consul] def close(): Unit = {
     synchronized {
       if (!sessionId.isEmpty) {
         sessionId foreach { id =>
-          Try{ destroyReq(id) }
+          muted("Session.destroy", () => destroyReq(id))
           log.info("Consul session removed {}", id)
-          listeners foreach { l => Try { l(id, false) } }
+          listeners foreach { l => muted[Unit]("Listener.call", () => l(id, false)) }
         }
         sessionId = None
       }
+    }
+  }
+
+  private[this] def muted[T](name: String, f: () => T): Try[T] = {
+    Try{ f() } match {
+      case Return(value) =>
+        Return(value)
+      case Throw(e) =>
+        log.error(s"$name - ${e.getClass} - ${e.getMessage}")
+        Throw(e)
     }
   }
 
@@ -111,8 +119,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
           inChannel.poll(interval, TimeUnit.SECONDS) match {
             case true =>
               running = false
-              Try { me.close() }
-              outChannel.offer(true)
+              me.close()
             case false if me.isOpen =>
               me.log.debug("Consul heartbeat tick")
               me.renew()
@@ -182,7 +189,6 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 }
 
 object ConsulSession {
-
   type SessionId = String
   type Listener  = (SessionId, Boolean) => Unit
 
