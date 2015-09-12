@@ -59,7 +59,7 @@ class ConsulService(client: HttpxService[Request, Response]) extends ConsulConst
 }
 
 object ConsulService {
-  case class Service(sessionId: ConsulSession.SessionId, name: String, address: String, port: Int, tags: List[String])
+  case class Service(sessionId: ConsulSession.SessionId, name: String, address: String, port: Int, tags: Set[String])
   case class GetReply(CreateIndex: Int, ModifyIndex: Int, LockIndex: Int, Key: String, Flags: Int, Value: String)
 
   class InvalidResponse(msg: String) extends RuntimeException(msg)
