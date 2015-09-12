@@ -13,7 +13,7 @@ class ConsulService(client: HttpxService[Request, Response]) extends ConsulConst
 
   import ConsulService._
 
-  implicit val format = org.json4s.DefaultFormats
+  private[this] implicit val format = org.json4s.DefaultFormats
 
   def create(service: Service): Unit = {
     val req = Request(Method.Put, SERVICE_CREATE_PATH.format(service.name, service.sessionId, service.sessionId))

@@ -16,14 +16,14 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   import ConsulSession._
 
-  implicit val format = org.json4s.DefaultFormats
+  private[this] implicit val format = org.json4s.DefaultFormats
 
-  val log        = LoggerFactory.getLogger(getClass.getName)
-  var sessionId  = Option.empty[SessionId]
-  var heartbeat  = Option.empty[Thread]
-  var listeners  = List.empty[Listener]
-  val inChannel  = new LinkedBlockingQueue[Boolean]()
-  val outChannel = new LinkedBlockingQueue[Boolean]()
+  val log = LoggerFactory.getLogger(getClass.getName)
+  private[this] var sessionId  = Option.empty[SessionId]
+  private[this] var heartbeat  = Option.empty[Thread]
+  private[this] var listeners  = List.empty[Listener]
+  private[this] val inChannel  = new LinkedBlockingQueue[Boolean]()
+  private[this] val outChannel = new LinkedBlockingQueue[Boolean]()
 
   def start(): Unit = {
     heartbeat.getOrElse {
@@ -191,8 +191,5 @@ object ConsulSession {
   case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
 
-  class SessionNotFound(msg: String) extends RuntimeException(msg)
   class InvalidResponse(msg: String) extends RuntimeException(msg)
-
-
 }
