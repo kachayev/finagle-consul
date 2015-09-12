@@ -29,7 +29,7 @@ case class ServiceLocation(
   ServicePort: Int
 )
 
-class ConsulResolver extends Resolver {
+class ConsulResolver extends Resolver with ConsulConnection {
   val scheme = "consul"
   implicit val format = org.json4s.DefaultFormats
   val logger = Logger.getLogger(getClass.getName)
@@ -57,11 +57,10 @@ class ConsulResolver extends Resolver {
     new InetSocketAddress(address, location.ServicePort)
   }
 
-  // xxx: memoize newClient
   def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
-    val client = Http.newClient(hosts)
+    val client = getClient(hosts)
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q))
-    // xxx: timeout? 
+    // xxx: timeout?
     // xxx: error?
     client.toService(req) map { resp =>
       val output = new ChannelBufferInputStream(resp.getContent)
@@ -115,5 +114,5 @@ class ConsulResolver extends Resolver {
 
     case _ =>
       throw new ConsulResolverException(s"Invalid address '$arg'")
-  }  
+  }
 }

@@ -32,7 +32,7 @@ case class ConsulNode(
   service: ConsulService
 )
 
-class ConsulAnnouncer extends Announcer {
+class ConsulAnnouncer extends Announcer with ConsulConnection {
 
   val scheme = "consul"
   val registerPath = "/v1/catalog/register"
@@ -48,10 +48,9 @@ class ConsulAnnouncer extends Announcer {
   def escape(s: String): String = "\"" + s + "\""
 
   // xxx: implement custom health check(s)
-  // xxx: memorize newClient operation
   // xxx: cleanup code for JSON encoding
   def send(hosts: String, node: ConsulNode)(f: HttpResponse => Boolean) = {
-    val client = Http.newClient(hosts)
+    val client = getClient(hosts)
     val tags = node.service.tags.map(escape(_)).mkString(", ")
     val dc = node.dc.map(escape(_)).getOrElse("null")
     val payload = s"""{
@@ -116,7 +115,7 @@ class ConsulAnnouncer extends Announcer {
       "ServiceID": "$serviceId",
       "CheckID": "service:$serviceId"
     }"""
-    val client = Http.newClient(hosts) 
+    val client = Http.newClient(hosts)
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, deregisterPath)
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
     client.toService(req) map { resp =>

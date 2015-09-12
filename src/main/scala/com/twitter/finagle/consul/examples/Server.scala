@@ -12,15 +12,15 @@ class RandomNumberServer {
 
   val service = new Service[HttpRequest, HttpResponse] {
     def apply(req: HttpRequest): Future[HttpResponse] = {
-      val reqId = req.getHeader("X-Req-Id")
-      val clientId = req.getHeader("X-Client-Id")
-      val respId = Random.alphanumeric.take(5).mkString
-      val content = s"Server:$serverId; Client:$clientId; Req:$reqId; Resp:$respId"
+      val reqId    = HttpHeaders.getHeader(req, "X-Req-Id")
+      val clientId = HttpHeaders.getHeader(req, "X-Client-Id")
+      val respId   = Random.alphanumeric.take(5).mkString
+      val content  = s"Server:$serverId; Client:$clientId; Req:$reqId; Resp:$respId"
       val response = Response()
       response.setContentString(content)
       Future.value(response)
     }
-  }  
+  }
 
 }
 

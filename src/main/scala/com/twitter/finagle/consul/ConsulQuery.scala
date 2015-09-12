@@ -17,12 +17,12 @@ object ConsulQuery {
     Duration.fromSeconds(ttls.asScala.head.toInt)
 
   def decodeString(query: String): Option[ConsulQuery] = {
-    val q = new QueryStringDecoder(query)
-    val name = q.getPath.stripPrefix("/").split("/") mkString "."
+    val q      = new QueryStringDecoder(query)
+    val name   = q.getPath.stripPrefix("/").split("/") mkString "."
     val params = q.getParameters.asScala
-    val ttl = params.get("ttl").map(readTTL)
-    val tags = params.get("tag").map(_.asScala.toSet).getOrElse(Set.empty[String])
-    val dc = params.get("dc").map(_.get(0))
+    val ttl    = params.get("ttl").map(readTTL)
+    val tags   = params.get("tag").map(_.asScala.toSet).getOrElse(Set.empty[String])
+    val dc     = params.get("dc").map(_.get(0))
     Some(ConsulQuery(name, ttl, tags + "finagle", dc))
   }
 
