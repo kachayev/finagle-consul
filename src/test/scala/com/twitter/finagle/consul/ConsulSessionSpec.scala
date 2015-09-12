@@ -15,11 +15,11 @@ class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
     try {
       session.start()
       Thread.sleep(5000)
-      val reply0 = Await.result(session.info())
+      val Some(reply0) = session.info()
       session.close()
 
       Thread.sleep(5000)
-      val reply1 = Await.result(session.info())
+      val Some(reply1) = session.info()
       assert(reply0.ID != reply1.ID)
 
     } finally {
@@ -33,12 +33,10 @@ class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
     try {
       session.start()
       Thread.sleep(5000)
-      val reply0 = Await.result(session.info())
+      val Some(reply0) = session.info()
 
       Thread.sleep(20000)
-      val reply1 = Await.result(session.info().liftToTry)
-      println(reply1)
-      assert(reply1.isThrow)
+      val None = session.info()
 
     } finally {
       session.stop()

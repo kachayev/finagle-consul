@@ -41,11 +41,8 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   def isOpen = !sessionId.isEmpty
 
-  def info(): Future[InfoReply] = {
-    sessionId match {
-      case Some(id) => infoReq(id)
-      case None     => Future.exception(sessionNotFoundError)
-    }
+  def info(): Option[InfoReply] = {
+    sessionId flatMap infoReq
   }
 
   def addListener(listener: Listener): Unit = {
@@ -140,16 +137,18 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     val reply = Await.result(client(req))
     reply.getStatusCode match {
       case 200 => parse(reply.contentString).extract[CreateReply]
-      case err => throw new InvalidResponse(s"$err: ${reply.contentString}")
+      case _   => throw badResponse(reply)
     }
   }
 
-  private[this] def destroyReq(id: SessionId) = {
+  private[this] def destroyReq(id: SessionId): Boolean = {
     val req = Request(Method.Put, SESSION_DESTROY_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    if (reply.getStatusCode != 200) {
-      throw new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
+    reply.getStatusCode match {
+      case 200 => true
+      case 404 => false
+      case e   => throw badResponse(reply)
     }
   }
 
@@ -157,33 +156,29 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    if (reply.getStatusCode == 404) {
-      false
-    } else if (reply.getStatusCode == 200) {
-      true
-    } else {
-      throw new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
+    reply.getStatusCode match {
+      case 200 => true
+      case 404 => false
+      case _   => throw badResponse(reply)
     }
   }
 
-  private[this] def infoReq(id: SessionId): Future[InfoReply] = {
+  private[this] def infoReq(id: SessionId): Option[InfoReply] = {
     val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
     req.setContentTypeJson()
-    client(req) transform {
-      case Return(reply) =>
-        val _info = parse(reply.contentString).extract[InfoReply]
-        if (_info == null) {
-          Future.exception(sessionNotFoundError(id))
-        } else {
-          Future.value(_info)
-        }
-      case Throw(e) =>
-        Future.exception(e)
+    val reply = Await.result(client(req))
+    reply.getStatusCode match {
+      case 200 =>
+        Option(parse(reply.contentString).extract[InfoReply])
+      case 404 =>
+        None
+      case _   => throw badResponse(reply)
     }
   }
 
-  private[this] def sessionNotFoundError(id: SessionId) = new SessionNotFound(s"Consul session $id is not exists")
-  private[this] def sessionNotFoundError() = new SessionNotFound(s"Consul session is not exists")
+  private[this] def badResponse(reply: Response) = {
+    new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
+  }
 }
 
 object ConsulSession {
