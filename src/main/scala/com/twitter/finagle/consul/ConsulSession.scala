@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-import java.util.logging.Logger
+import org.slf4j.LoggerFactory
 
 class ConsulSession(client: Service[Request, Response], opts: ConsulSession.CreateOptions) extends ConsulConstants {
 
@@ -18,7 +18,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   implicit val format = org.json4s.DefaultFormats
 
-  val log        = Logger.getLogger(getClass.getName)
+  val log        = LoggerFactory.getLogger(getClass.getName)
   var sessionId  = Option.empty[SessionId]
   var heartbeat  = Option.empty[Thread]
   var listeners  = List.empty[Listener]
@@ -58,7 +58,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     sessionId map { sid =>
       val reply = renewReq(sid)
       if(!reply) {
-        log.info(s"Consul session $sid not found")
+        log.info("Consul session {} not found", sid)
         close()
       }
       reply
@@ -69,7 +69,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       sessionId getOrElse {
         val reply = createReq()
-        log.info(s"Consul session created ${reply.ID}")
+        log.info("Consul session created {}", reply.ID)
         sessionId = Some(reply.ID)
         listeners foreach { l => Try { l(reply.ID, true) } }
         sessionId
@@ -82,7 +82,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       if (!sessionId.isEmpty) {
         sessionId foreach { id =>
           Try{ destroyReq(id) }
-          log.info(s"Consul session removed ${id}")
+          log.info("Consul session removed {}", id)
           listeners foreach { l => Try { l(id, false) } }
         }
         sessionId = None
@@ -98,7 +98,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       var running  = true
       var cooldown = false
 
-      me.log.info(s"Consul heartbeat thread started")
+      me.log.info("Consul heartbeat thread started")
 
       while(running) {
         try {
@@ -117,7 +117,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
               Try { me.close() }
               outChannel.offer(true)
             case false if me.isOpen =>
-              me.log.info(s"Consul heartbeat tick")
+              me.log.debug("Consul heartbeat tick")
               me.renew()
             case _ =>
               me.log.info(s"Consul session closed, reopen")
