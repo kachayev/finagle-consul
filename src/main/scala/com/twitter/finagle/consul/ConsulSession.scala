@@ -19,8 +19,9 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   implicit val format = org.json4s.DefaultFormats
 
   val log        = Logger.getLogger(getClass.getName)
-  var sessionId  = Option.empty[String]
+  var sessionId  = Option.empty[SessionId]
   var heartbeat  = Option.empty[Thread]
+  var listeners  = List.empty[Listener]
   val inChannel  = new LinkedBlockingQueue[Boolean]()
   val outChannel = new LinkedBlockingQueue[Boolean]()
 
@@ -47,6 +48,12 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
+  def addListener(listener: Listener): Unit = {
+    synchronized {
+      listeners = listeners ++ List(listener)
+    }
+  }
+
   private[consul] def renew() = {
     sessionId foreach renewReq
     sessionId
@@ -58,6 +65,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
         val reply = createReq()
         log.info(s"Consul session created ${reply.ID}")
         sessionId = Some(reply.ID)
+        listeners foreach { l => Try { l(client, reply.ID) } }
         sessionId
       }
     }
@@ -127,7 +135,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def destroyReq(id: String) = {
+  private[this] def destroyReq(id: SessionId) = {
     val req = Request(Method.Put, SESSION_DESTROY_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
@@ -136,7 +144,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def renewReq(id: String) = {
+  private[this] def renewReq(id: SessionId) = {
     val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
@@ -145,7 +153,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def infoReq(id: String): Future[InfoReply] = {
+  private[this] def infoReq(id: SessionId): Future[InfoReply] = {
     val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
     req.setContentTypeJson()
     client(req) transform {
@@ -161,14 +169,18 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def sessionNotFoundError(id: String) = new SessionNotFound(s"Consul session $id is not exists")
+  private[this] def sessionNotFoundError(id: SessionId) = new SessionNotFound(s"Consul session $id is not exists")
   private[this] def sessionNotFoundError() = new SessionNotFound(s"Consul session is not exists")
 }
 
 object ConsulSession {
+
+  type SessionId = String
+  type Listener  = (Service[Request, Response], SessionId) => Unit
+
   case class CreateOptions(name: String, ttl: Int = 10, interval: Int = 10, lockDelay: Int = 10)
 
-  case class CreateReply(ID: String)
+  case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
 
   class SessionNotFound(msg: String) extends RuntimeException(msg)
