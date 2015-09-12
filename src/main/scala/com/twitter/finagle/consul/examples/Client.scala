@@ -19,7 +19,7 @@ class RandomNumberClient(val path: String) {
   def ask(index: Int): Future[HttpResponse] = {
     val request = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, "/")
     request.headers().add("X-Client-Id", id)
-    request.headers().add("X-Req-Id", index)    
+    request.headers().add("X-Req-Id", index)
 
     println(s"Sending req #$index")
 
@@ -34,11 +34,13 @@ class RandomNumberClient(val path: String) {
 
 object Client extends App {
 
-  val path = "consul!localhost:8500!/RandomNumber?tag=prod&dc=dc1&ttl=45"
+  val path = "consul!localhost:8500!/RandomNumber?tag=prod&dc=dc1&ttl=5"
   val rn = new RandomNumberClient(path)
 
   println(s"Run CLIENT: ${rn.id}")
 
+
   Await.result(rn.run(50))
 
+  Thread.sleep(20000)
 }

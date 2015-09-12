@@ -58,6 +58,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     sessionId map { sid =>
       val reply = renewReq(sid)
       if(!reply) {
+        log.info(s"Consul session $sid not found")
         close()
       }
       reply
@@ -101,28 +102,29 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
       while(running) {
         try {
-          if (cooldown) {
-            Thread.sleep(SESSION_HEARTBEAT_COOLDOWN)
-            cooldown = false
-          }
 
           if (!me.isOpen) {
+            if (cooldown) {
+              Thread.sleep(SESSION_HEARTBEAT_COOLDOWN)
+            }
+            cooldown = false
             me.open()
           }
 
-          val gone = inChannel.poll(interval, TimeUnit.SECONDS)
-          if (gone == true) {
-            running = false
-            Try { me.close() }
-            outChannel.offer(true)
-          } else {
-            me.log.info(s"Consul heartbeat tick")
-            me.renew()
+          inChannel.poll(interval, TimeUnit.SECONDS) match {
+            case true =>
+              running = false
+              Try { me.close() }
+              outChannel.offer(true)
+            case false if me.isOpen =>
+              me.log.info(s"Consul heartbeat tick")
+              me.renew()
+            case _ =>
+              me.log.info(s"Consul session closed, reopen")
           }
         } catch {
           case NonFatal(e) =>
             log.info(s"${e.getClass.getName}: ${e.getMessage}")
-            Try{ me.close() }
             cooldown = true
         }
       }

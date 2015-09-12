@@ -1,7 +1,7 @@
 package com.twitter.finagle.consul
 
 trait ConsulConstants {
-  val SESSION_HEARTBEAT_COOLDOWN = 5000
+  val SESSION_HEARTBEAT_COOLDOWN = 3000
 
   val SESSION_CREATE_PATH  = "/v1/session/create"
   val SESSION_DESTROY_PATH = "/v1/session/destroy/%s"
