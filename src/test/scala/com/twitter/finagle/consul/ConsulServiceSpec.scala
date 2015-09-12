@@ -20,8 +20,8 @@ class ConsulServiceSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
       session0.open()
       session1.open()
 
-      val newInstance0 = ConsulService.Service(session0.sessionId.get, "my/name", "example.com", 80, List("one", "two"))
-      val newInstance1 = ConsulService.Service(session1.sessionId.get, "my/name", "example.com", 80, List("one", "two"))
+      val newInstance0 = ConsulService.Service(session0.sessionId.get, "my/name", "example.com", 80, Set("one", "two"))
+      val newInstance1 = ConsulService.Service(session1.sessionId.get, "my/name", "example.com", 80, Set("one", "two"))
 
       assert(newInstance0.sessionId != newInstance1.sessionId)
 

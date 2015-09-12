@@ -54,9 +54,14 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[consul] def renew() = {
-    sessionId foreach renewReq
-    sessionId
+  private[consul] def renew(): Unit = {
+    sessionId map { sid =>
+      val reply = renewReq(sid)
+      if(!reply) {
+        close()
+      }
+      reply
+    }
   }
 
   private[consul] def open() = {
@@ -73,12 +78,14 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   private[consul] def close() = {
     synchronized {
-      sessionId foreach { id =>
-        destroyReq(id)
-        log.info(s"Consul session removed ${id}")
-        listeners foreach { l => Try { l(id, false) } }
+      if (!sessionId.isEmpty) {
+        sessionId foreach { id =>
+          Try{ destroyReq(id) }
+          log.info(s"Consul session removed ${id}")
+          listeners foreach { l => Try { l(id, false) } }
+        }
+        sessionId = None
       }
-      sessionId = None
     }
   }
 
@@ -109,9 +116,8 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
             Try { me.close() }
             outChannel.offer(true)
           } else {
-            me.renew() foreach { id =>
-              me.log.info(s"Consul heartbeat tick $id")
-            }
+            me.log.info(s"Consul heartbeat tick")
+            me.renew()
           }
         } catch {
           case NonFatal(e) =>
@@ -145,11 +151,15 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def renewReq(id: SessionId) = {
+  private[this] def renewReq(id: SessionId): Boolean = {
     val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    if (reply.getStatusCode != 200) {
+    if (reply.getStatusCode == 404) {
+      false
+    } else if (reply.getStatusCode == 200) {
+      true
+    } else {
       throw new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
     }
   }
