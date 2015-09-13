@@ -5,10 +5,12 @@ import java.net.{InetSocketAddress, SocketAddress}
 import com.twitter.finagle.util.{DefaultTimer, Updater}
 import com.twitter.finagle.{Addr, Resolver}
 import com.twitter.util.{FuturePool, Var}
+import java.util.logging.Logger
 
 class ConsulResolver extends Resolver {
   val scheme = "consul"
 
+  private[this] val log        = Logger.getLogger(getClass.getName)
   private[this] val timer      = DefaultTimer.twitter
   private[this] val futurePool = FuturePool.unboundedPool
 
@@ -19,8 +21,7 @@ class ConsulResolver extends Resolver {
       val newAddrs = services.map{ s =>
         new InetSocketAddress(s.address, s.port).asInstanceOf[SocketAddress]
       }.toSet
-
-      println(newAddrs)
+      log.info(s"Consul resolver got addresses=$newAddrs")
       (newDigest, Some(newAddrs))
     } else {
       (newDigest, None)

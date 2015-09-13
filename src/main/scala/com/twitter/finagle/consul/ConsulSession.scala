@@ -73,7 +73,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     sessionId map { sid =>
       val reply = renewReq(sid)
       if(!reply) {
-        log.info(s"Consul session $sid not found")
+        log.info(s"Consul session not found id=$sid")
         close()
       }
       reply
@@ -84,7 +84,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       sessionId getOrElse {
         val reply = createReq()
-        log.info(s"Consul session created ${reply.ID}")
+        log.info(s"Consul session created id=${reply.ID}")
         sessionId = Some(reply.ID)
         listeners foreach { l => muted[Unit]("Listener.call", () => l.start(reply.ID)) }
         sessionId
@@ -97,7 +97,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       if (sessionId.isDefined) {
         sessionId foreach { id =>
           muted("Session.destroy", () => destroyReq(id))
-          log.info(s"Consul session removed $id")
+          log.info(s"Consul session removed id=$id")
           listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
         }
         sessionId = None

@@ -6,7 +6,7 @@ import com.twitter.util.{Await, Future}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class E2ESpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
-  "servers and client comunication" in {
+  "servers and client communication" in {
     val service0 = new Service[Request, Response] {
       def apply(req: Request) = Future.value(Response(req.version, Status.Ok))
     }
@@ -45,6 +45,6 @@ class E2ESpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
 
     client.close()
 
-    Thread.sleep(2000)
+    Thread.sleep(1000)
   }
 }
