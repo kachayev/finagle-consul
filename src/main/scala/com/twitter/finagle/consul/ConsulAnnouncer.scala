@@ -10,22 +10,11 @@ class ConsulAnnouncer extends Announcer {
 
   val scheme = "consul"
 
-  // TODO: move to separate class instance
-  def sessionListener(p: ListenerParams, sid: String, connected: Boolean): Unit = {
-    if (connected) {
-      val newSrv = ConsulService.Service(sid, p.name, p.address, p.port, p.tags)
-      p.service.create(newSrv)
-    } else {
-      p.service.destroy(sid, p.name)
-    }
-  }
-
   def announce(ia: InetSocketAddress, hosts: String, q: ConsulQuery): Future[Announcement] = {
     val address  = ia.getAddress.getHostAddress
     val session  = ConsulSessionFactory.getSession(hosts)
     val service  = new ConsulService(ConsulClientFactory.getClient(hosts))
-    val params   = ListenerParams(service, q.name, address, ia.getPort, q.tags)
-    val listener: ConsulSession.Listener = sessionListener(params, _, _)
+    val listener = new SessionListener(service, q.name, address, ia.getPort, q.tags)
 
     session.addListener(listener)
     session.incServices()
@@ -62,5 +51,16 @@ class ConsulAnnouncer extends Announcer {
 }
 
 object ConsulAnnouncer {
-  case class ListenerParams(service: ConsulService, name: String, address: String, port: Int, tags: Set[String])
+  class SessionListener(service: ConsulService, name: String, address: String, port: Int, tags: Set[String])
+    extends ConsulSession.Listener {
+
+    def start(sid: ConsulSession.SessionId): Unit = {
+      val newSrv = ConsulService.Service(sid, name, address, port, tags)
+      service.create(newSrv)
+    }
+
+    def stop(sid: ConsulSession.SessionId): Unit = {
+      service.destroy(sid, name)
+    }
+  }
 }

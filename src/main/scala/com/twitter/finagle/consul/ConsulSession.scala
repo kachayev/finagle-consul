@@ -88,7 +88,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
         val reply = createReq()
         log.info("Consul session created {}", reply.ID)
         sessionId = Some(reply.ID)
-        listeners foreach { l => muted[Unit]("Listener.call", () => l(reply.ID, true)) }
+        listeners foreach { l => muted[Unit]("Listener.call", () => l.start(reply.ID)) }
         sessionId
       }
     }
@@ -100,7 +100,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
         sessionId foreach { id =>
           muted("Session.destroy", () => destroyReq(id))
           log.info("Consul session removed {}", id)
-          listeners foreach { l => muted[Unit]("Listener.call", () => l(id, false)) }
+          listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
         }
         sessionId = None
       }
@@ -212,7 +212,11 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
 object ConsulSession {
   type SessionId = String
-  type Listener  = (SessionId, Boolean) => Unit
+
+  trait Listener {
+    def start(id: SessionId) : Unit
+    def stop(id: SessionId) : Unit
+  }
 
   case class CreateOptions(name: String, ttl: Int = 10, interval: Int = 10, lockDelay: Int = 10)
 
