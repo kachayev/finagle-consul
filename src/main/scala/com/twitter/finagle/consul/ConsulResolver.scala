@@ -12,23 +12,40 @@ class ConsulResolver extends Resolver {
   private[this] val timer      = DefaultTimer.twitter
   private[this] val futurePool = FuturePool.unboundedPool
 
-  private[this] def addresses(hosts: String, query: ConsulQuery) : Set[SocketAddress] = {
-    val services = ConsulServiceFactory.getService(hosts)
-    val addrs    = services.list(query.name) map { s =>
-      new InetSocketAddress(s.address, s.port)
+  private[this] def addresses(hosts: String, name: String, digest: String) : (String, Option[Set[SocketAddress]]) = {
+    val services  = ConsulServiceFactory.getService(hosts).list(name)
+    val newDigest = services.map(_.sessionId).sorted.mkString(",")
+    if (newDigest != digest) {
+      val newAddrs = services.map{ s =>
+        new InetSocketAddress(s.address, s.port).asInstanceOf[SocketAddress]
+      }.toSet
+
+      println(newAddrs)
+      (newDigest, Some(newAddrs))
+    } else {
+      (newDigest, None)
     }
-    addrs.toSet
   }
 
   def addrOf(hosts: String, query: ConsulQuery): Var[Addr] =
     Var.async(Addr.Pending: Addr) { u =>
-      u() = Addr.Bound(addresses(hosts, query))
+      val (digest, maybeAddrs) = addresses(hosts, query.name, "")
+      maybeAddrs foreach { addrs =>
+        u() = Addr.Bound(addrs)
+      }
+
       val updater = new Updater[Unit] {
-        val one = Seq(())
+        val one     = Seq(())
+        var _digest = digest
         protected def preprocess(elems: Seq[Unit]) = one
         protected def handle(unit: Unit) {
-          val addrs = addresses(hosts, query)
-          u() = Addr.Bound(addrs.toSet)
+          addresses(hosts, query.name, _digest) match {
+            case (newDigest, Some(addrs)) =>
+              u() = Addr.Bound(addrs)
+              _digest = newDigest
+            case (newDigest, None) =>
+              _digest = newDigest
+          }
         }
       }
       timer.schedule(query.ttl.fromNow, query.ttl) {

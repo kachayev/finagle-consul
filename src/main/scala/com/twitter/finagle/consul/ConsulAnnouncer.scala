@@ -27,11 +27,15 @@ class ConsulAnnouncer extends Announcer {
     val listener: ConsulSession.Listener = sessionListener(params, _, _)
 
     session.addListener(listener)
+    session.incServices()
     session.start()
 
     Future {
       new Announcement {
-        def unannounce() = Future[Unit] { session.stop() }
+        def unannounce() = Future[Unit] {
+          session.decServices()
+          session.stop()
+        }
       }
     }
   }

@@ -5,6 +5,7 @@ import com.twitter.finagle.httpx.{ Request, Response, Method}
 import com.twitter.util.{Await, NonFatal, Try, Future, Throw, Return}
 import java.util.concurrent.{LinkedBlockingQueue}
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -18,10 +19,11 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   private[this] implicit val format = org.json4s.DefaultFormats
 
   val log = LoggerFactory.getLogger(getClass.getName)
-  private[consul] var sessionId  = Option.empty[SessionId]
-  private[this]   var heartbeat  = Option.empty[Thread]
-  private[this]   var listeners  = List.empty[Listener]
-  private[this]   val inChannel  = new LinkedBlockingQueue[Boolean]()
+  private[consul] var sessionId     = Option.empty[SessionId]
+  private[this]   var heartbeat     = Option.empty[Thread]
+  private[this]   var listeners     = List.empty[Listener]
+  private[this]   val inChannel     = new LinkedBlockingQueue[Boolean]()
+  private[this]   val servicesCount = new AtomicInteger(0)
 
   def start(): Unit = {
     heartbeat.getOrElse {
@@ -30,11 +32,25 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   def stop(): Unit = {
-    heartbeat foreach { th =>
-      inChannel.offer(true)
-      th.join()
+    if (servicesCount.get == 0) {
+      heartbeat foreach { th =>
+        inChannel.offer(true)
+        th.join()
+        heartbeat = None
+      }
+    } else {
+      log.debug(s"Consul session reject close request, ${servicesCount.get} live services")
     }
-    heartbeat = None
+  }
+
+  def decServices(): Unit = {
+    val newVal = servicesCount.decrementAndGet
+    log.debug(s"Consul session ${newVal} live services")
+  }
+
+  def incServices(): Unit = {
+    val newVal = servicesCount.incrementAndGet
+    log.debug(s"Consul session ${newVal} live services")
   }
 
   def isOpen = !sessionId.isEmpty
