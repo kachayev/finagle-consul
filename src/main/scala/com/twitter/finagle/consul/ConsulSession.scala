@@ -206,7 +206,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   private[this] def badResponse(reply: Response) = {
-    new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
+    new BadResponseException(s"${reply.getStatusCode}: ${reply.contentString}")
   }
 }
 
@@ -223,5 +223,5 @@ object ConsulSession {
   case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
 
-  class InvalidResponse(msg: String) extends RuntimeException(msg)
+  class BadResponseException(msg: String) extends RuntimeException(msg)
 }
