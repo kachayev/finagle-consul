@@ -10,6 +10,7 @@ class ConsulAnnouncer extends Announcer {
 
   val scheme = "consul"
 
+  // TODO: move to separate class instance
   def sessionListener(p: ListenerParams, sid: String, connected: Boolean): Unit = {
     if (connected) {
       val newSrv = ConsulService.Service(sid, p.name, p.address, p.port, p.tags)
@@ -33,6 +34,7 @@ class ConsulAnnouncer extends Announcer {
     Future {
       new Announcement {
         def unannounce() = Future[Unit] {
+          session.delListener(listener)
           session.decServices()
           session.stop()
         }

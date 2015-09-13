@@ -65,6 +65,12 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
+  def delListener(listener: Listener): Unit = {
+    synchronized {
+      listeners = listeners.filterNot(_ == listener)
+    }
+  }
+
   private[consul] def renew(): Unit = {
     sessionId map { sid =>
       val reply = renewReq(sid)

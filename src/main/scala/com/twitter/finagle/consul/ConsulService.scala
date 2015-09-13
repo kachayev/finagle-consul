@@ -19,6 +19,7 @@ class ConsulService(client: HttpxService[Request, Response]) extends ConsulConst
     val req = Request(Method.Put, SERVICE_CREATE_PATH.format(service.name, service.sessionId, service.sessionId))
     req.setContentTypeJson()
     req.write(Serialization.write(service))
+    println(s"!! ${Serialization.write(service)}")
     val reply = Await.result(client(req))
     if (reply.getStatusCode != 200) {
       throw new InvalidResponse(s"${reply.getStatusCode}: ${reply.contentString}")
