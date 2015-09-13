@@ -53,7 +53,7 @@ object ConsulAnnouncer {
     extends ConsulSession.Listener {
 
     def start(sid: ConsulSession.SessionId): Unit = {
-      val newSrv = ConsulService.Service(sid, name, address, port, tags)
+      val newSrv = ConsulService.FinagleService(sid, name, address, port, tags)
       service.create(newSrv)
     }
 

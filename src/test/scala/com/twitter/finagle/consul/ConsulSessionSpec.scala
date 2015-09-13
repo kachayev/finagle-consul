@@ -31,10 +31,10 @@ class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
     try {
       session.start()
       Thread.sleep(5000)
-      val Some(reply0) = session.info()
+      assert(session.info().isDefined)
 
       Thread.sleep(20000)
-      val None = session.info()
+      assert(session.info().isEmpty)
 
     } finally {
       session.stop()
