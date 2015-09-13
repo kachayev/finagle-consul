@@ -1,16 +1,14 @@
 package com.twitter.finagle.consul
 
-import com.twitter.finagle.{Httpx, Service}
-import com.twitter.finagle.httpx.{ Request, Response, Method}
-import com.twitter.util.{Await, NonFatal, Try, Future, Throw, Return}
-import java.util.concurrent.{LinkedBlockingQueue}
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Logger
 
+import com.twitter.finagle.Service
+import com.twitter.finagle.httpx.{Method, Request, Response}
+import com.twitter.util.{Await, NonFatal, Return, Throw, Try}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-
-import org.slf4j.LoggerFactory
 
 class ConsulSession(client: Service[Request, Response], opts: ConsulSession.CreateOptions) extends ConsulConstants {
 
@@ -18,7 +16,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   private[this] implicit val format = org.json4s.DefaultFormats
 
-  val log = LoggerFactory.getLogger(getClass.getName)
+  val log = Logger.getLogger(getClass.getName)
   private[consul] var sessionId     = Option.empty[SessionId]
   private[this]   var heartbeat     = Option.empty[Thread]
   private[this]   var listeners     = List.empty[Listener]
@@ -39,21 +37,21 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
         heartbeat = None
       }
     } else {
-      log.debug(s"Consul session reject close request, ${servicesCount.get} live services")
+      log.info(s"Consul session reject close request, ${servicesCount.get} live services")
     }
   }
 
   def decServices(): Unit = {
     val newVal = servicesCount.decrementAndGet
-    log.debug(s"Consul session ${newVal} live services")
+    log.fine(s"Consul session $newVal live services")
   }
 
   def incServices(): Unit = {
     val newVal = servicesCount.incrementAndGet
-    log.debug(s"Consul session ${newVal} live services")
+    log.fine(s"Consul session $newVal live services")
   }
 
-  def isOpen = !sessionId.isEmpty
+  def isOpen = sessionId.isDefined
 
   def info(): Option[InfoReply] = {
     sessionId flatMap infoReq
@@ -75,7 +73,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     sessionId map { sid =>
       val reply = renewReq(sid)
       if(!reply) {
-        log.info("Consul session {} not found", sid)
+        log.info(s"Consul session $sid not found")
         close()
       }
       reply
@@ -86,7 +84,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       sessionId getOrElse {
         val reply = createReq()
-        log.info("Consul session created {}", reply.ID)
+        log.info(s"Consul session created ${reply.ID}")
         sessionId = Some(reply.ID)
         listeners foreach { l => muted[Unit]("Listener.call", () => l.start(reply.ID)) }
         sessionId
@@ -96,10 +94,10 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   private[consul] def close(): Unit = {
     synchronized {
-      if (!sessionId.isEmpty) {
+      if (sessionId.isDefined) {
         sessionId foreach { id =>
           muted("Session.destroy", () => destroyReq(id))
-          log.info("Consul session removed {}", id)
+          log.info(s"Consul session removed $id")
           listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
         }
         sessionId = None
@@ -112,7 +110,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       case Return(value) =>
         Return(value)
       case Throw(e) =>
-        log.error(s"$name - ${e.getClass} - ${e.getMessage}")
+        log.severe(s"$name - ${e.getClass} - ${e.getMessage}")
         Throw(e)
     }
   }
@@ -143,7 +141,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
               running = false
               me.close()
             case false if me.isOpen =>
-              me.log.debug("Consul heartbeat tick")
+              me.log.fine("Consul heartbeat tick")
               me.renew()
             case _ =>
               me.log.info(s"Consul session closed, reopen")
@@ -164,9 +162,9 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     req.write(body)
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    reply.getStatusCode match {
+    reply.getStatusCode() match {
       case 200 => parse(reply.contentString).extract[CreateReply]
-      case _   => throw badResponse(reply)
+      case _   => throw ConsulErrors.badResponse(reply)
     }
   }
 
@@ -174,10 +172,10 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     val req = Request(Method.Put, SESSION_DESTROY_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    reply.getStatusCode match {
+    reply.getStatusCode() match {
       case 200 => true
       case 404 => false
-      case e   => throw badResponse(reply)
+      case e   => throw ConsulErrors.badResponse(reply)
     }
   }
 
@@ -185,10 +183,10 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    reply.getStatusCode match {
+    reply.getStatusCode() match {
       case 200 => true
       case 404 => false
-      case _   => throw badResponse(reply)
+      case _   => throw ConsulErrors.badResponse(reply)
     }
   }
 
@@ -196,17 +194,13 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
-    reply.getStatusCode match {
+    reply.getStatusCode() match {
       case 200 =>
         Option(parse(reply.contentString).extract[InfoReply])
       case 404 =>
         None
-      case _   => throw badResponse(reply)
+      case _   => throw ConsulErrors.badResponse(reply)
     }
-  }
-
-  private[this] def badResponse(reply: Response) = {
-    new BadResponseException(s"${reply.getStatusCode}: ${reply.contentString}")
   }
 }
 
@@ -222,6 +216,4 @@ object ConsulSession {
 
   case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
-
-  class BadResponseException(msg: String) extends RuntimeException(msg)
 }

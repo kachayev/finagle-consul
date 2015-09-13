@@ -10,7 +10,7 @@ class ConsulQuerySpec extends WordSpecLike with Matchers with BeforeAndAfterAll 
         assert(name          == "name")
         assert(ttl.toString  == "45.seconds")
         assert(tags          == Set("prod", "trace"))
-        assert(dc            == Some("DC"))
+        assert(dc.contains("DC"))
     }
   }
 
@@ -20,7 +20,7 @@ class ConsulQuerySpec extends WordSpecLike with Matchers with BeforeAndAfterAll 
         assert(name          == "")
         assert(ttl.toString  == "10.seconds")
         assert(tags          == Set())
-        assert(dc            == None)
+        assert(dc.isEmpty)
     }
   }
 }

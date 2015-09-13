@@ -1,9 +1,7 @@
 package com.twitter.finagle.consul
 
+import com.twitter.finagle.Httpx
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import com.twitter.finagle.{Httpx, ServiceFactory}
-import com.twitter.finagle.httpx
-import com.twitter.util.Await
 
 class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
 

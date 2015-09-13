@@ -1,8 +1,9 @@
 package com.twitter.finagle.consul
 
 import com.twitter.util.Duration
-import scala.collection.JavaConverters._
 import org.jboss.netty.handler.codec.http.QueryStringDecoder
+
+import scala.collection.JavaConverters._
 
 case class ConsulQuery(
   name: String,

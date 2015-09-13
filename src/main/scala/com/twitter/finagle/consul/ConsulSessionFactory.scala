@@ -1,11 +1,9 @@
 package com.twitter.finagle.consul
 
-import com.twitter.finagle.{Httpx, Service}
-import com.twitter.finagle.httpx.{ Request, Response}
 import scala.collection.mutable
 
 object ConsulSessionFactory {
-  private[this] var sessions = mutable.Map[(String, ConsulSession.CreateOptions), ConsulSession]()
+  private[this] val sessions = mutable.Map[(String, ConsulSession.CreateOptions), ConsulSession]()
 
   val defaultSessionOptions = ConsulSession.CreateOptions(name = "finagle.default")
 

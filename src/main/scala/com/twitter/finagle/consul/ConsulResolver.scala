@@ -1,10 +1,10 @@
 package com.twitter.finagle.consul
 
-import com.twitter.finagle.{Resolver, Addr}
 import java.net.{InetSocketAddress, SocketAddress}
-import com.twitter.util.{Var, FuturePool}
-import com.twitter.util.Closable
-import com.twitter.finagle.util.{Updater, DefaultTimer}
+
+import com.twitter.finagle.util.{DefaultTimer, Updater}
+import com.twitter.finagle.{Addr, Resolver}
+import com.twitter.util.{FuturePool, Var}
 
 class ConsulResolver extends Resolver {
   val scheme = "consul"

@@ -1,9 +1,9 @@
 package com.twitter.finagle.consul
 
-import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
-import com.twitter.finagle.httpx.{Request, Response, Status, Method}
+import com.twitter.finagle.httpx.{Method, Request, Response, Status}
 import com.twitter.finagle.{Httpx, Service}
-import com.twitter.util.{Future, Await, Try}
+import com.twitter.util.{Await, Future}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 class E2ESpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
   "servers and client comunication" in {

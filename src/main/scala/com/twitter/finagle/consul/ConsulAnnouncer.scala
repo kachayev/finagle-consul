@@ -1,8 +1,9 @@
 package com.twitter.finagle.consul
 
-import com.twitter.util.Future
-import com.twitter.finagle.{Announcer, Announcement}
 import java.net.InetSocketAddress
+
+import com.twitter.finagle.{Announcement, Announcer}
+import com.twitter.util.Future
 
 class ConsulAnnouncer extends Announcer {
 
@@ -36,16 +37,13 @@ class ConsulAnnouncer extends Announcer {
       case Array(hosts, query) =>
         ConsulQuery.decodeString(query) match {
           case Some(q) => announce(ia, hosts, q)
-          case None => {
+          case None =>
             val exc = new IllegalArgumentException(s"Invalid addr '$addr'")
             Future.exception(exc)
-          }
         }
-
-      case _ => {
+      case _ =>
         val exc = new IllegalArgumentException(s"Invalid addr '$addr'")
         Future.exception(exc)
-      }
     }
   }
 }
