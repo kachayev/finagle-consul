@@ -21,8 +21,7 @@ class E2ESpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
 
     try {
       server0 = Httpx.serveAndAnnounce("consul!localhost:8500!/E2ESpec", service0)
-      // different consul hosts for different sessions
-      server1 = Httpx.serveAndAnnounce("consul!127.0.0.1:8500!/E2ESpec", service0)
+      server1 = Httpx.serveAndAnnounce("consul!localhost:8500!/E2ESpec", service0)
 
       Thread.sleep(2000)
 
@@ -44,7 +43,7 @@ class E2ESpec extends WordSpecLike with Matchers with BeforeAndAfterAll {
       server1.close()
 
       Thread.sleep(2000)
-      server3 = Httpx.serveAndAnnounce("consul!127.0.0.1:8500!/E2ESpec", service0)
+      server3 = Httpx.serveAndAnnounce("consul!localhost:8500!/E2ESpec", service0)
       Thread.sleep(2000)
 
       // live 2,3

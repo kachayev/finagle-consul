@@ -9,7 +9,7 @@ import com.twitter.util._
 class ConsulLeaderElection(name: String, client: Service[Request,Response], session: ConsulSession)
   extends ConsulConstants {
 
-  import ConsulLeaderElection.LeaderElectionStatus._
+  import ConsulLeaderElection.Status._
 
   private var status = Pending
   private val self   = this
@@ -45,7 +45,7 @@ class ConsulLeaderElection(name: String, client: Service[Request,Response], sess
     }
   }
 
-  private def logNewStatus(sessionId: ConsulSession.SessionId, newStatus: ConsulLeaderElection.LeaderElectionStatus.Value): Unit = {
+  private def logNewStatus(sessionId: ConsulSession.SessionId, newStatus: ConsulLeaderElection.Status.Value): Unit = {
     if (newStatus == Leader) {
       log.info(s"Consul become a leader name=$name session=$sessionId")
     }
@@ -54,7 +54,7 @@ class ConsulLeaderElection(name: String, client: Service[Request,Response], sess
     }
   }
 
-  private def checkLock(sessionId: ConsulSession.SessionId): ConsulLeaderElection.LeaderElectionStatus.Value = {
+  private def checkLock(sessionId: ConsulSession.SessionId): ConsulLeaderElection.Status.Value = {
     val req    = Request(Method.Get, LEADER_CHECK_PATH.format(name))
     Await.result(client(req).liftToTry) match {
       case Return(reply) if reply.getStatusCode() == 200 =>
@@ -73,7 +73,7 @@ class ConsulLeaderElection(name: String, client: Service[Request,Response], sess
     }
   }
 
-  private def acquireLock(sessionId: ConsulSession.SessionId): ConsulLeaderElection.LeaderElectionStatus.Value = {
+  private def acquireLock(sessionId: ConsulSession.SessionId): ConsulLeaderElection.Status.Value = {
     val req    = Request(Method.Put, LEADER_ACQUIRE_PATH.format(name, sessionId))
     val result = Await.result(client(req).liftToTry)
     result match {
@@ -112,11 +112,11 @@ class ConsulLeaderElection(name: String, client: Service[Request,Response], sess
 
 object ConsulLeaderElection {
 
-  object LeaderElectionStatus extends Enumeration {
+  object Status extends Enumeration {
     val Pending, Leader  = Value
   }
 
-  def getLeaderElection(name: String, hosts: String): ConsulLeaderElection = {
+  def get(name: String, hosts: String): ConsulLeaderElection = {
     val client  = ConsulClientFactory.getClient(hosts)
     val session = ConsulSessionFactory.getSession(hosts)
     val leader  = new ConsulLeaderElection(name, client, session)

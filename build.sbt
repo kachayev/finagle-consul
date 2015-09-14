@@ -6,6 +6,8 @@ name := "finagle-consul"
 
 version := "0.0.1"
 
+licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+
 resolvers += "twttr" at "http://maven.twttr.com/"
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")

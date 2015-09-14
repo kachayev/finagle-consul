@@ -75,6 +75,6 @@ object ConsulService {
     val tags:    Set[String]
   }
 
-  case class FinagleService(id: ConsulSession.SessionId, name: String, address: String, port: Int, tags: Set[String])
+  case class FinagleService(id: ConsulSession.SessionId, name: String, address: String, port: Int, tags: Set[String], dc: Option[String] = None, endpoints: Set[String] = Set.empty)
     extends Service
 }

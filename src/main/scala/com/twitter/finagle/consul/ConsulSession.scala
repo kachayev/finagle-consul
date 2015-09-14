@@ -1,14 +1,11 @@
 package com.twitter.finagle.consul
 
 import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.{Level, Logger}
 
 import com.twitter.finagle.Service
 import com.twitter.finagle.httpx.{Method, Request, Response}
 import com.twitter.util.{Await, NonFatal, Return, Throw, Try}
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
 class ConsulSession(client: Service[Request, Response], opts: ConsulSession.CreateOptions) extends ConsulConstants {
 
@@ -38,7 +35,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   def isOpen = sessionId.isDefined
 
-  def info(): Option[InfoReply] = {
+  def info(): Option[ConsulKV.SessionGet] = {
     sessionId flatMap infoReq
   }
 
@@ -69,7 +66,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   private[consul] def tickListeners(): Unit = {
     sessionId foreach { sid =>
       listeners foreach { listener =>
-        muted("Listener.tick", () => listener.tick(sid))
+        muted(() => listener.tick(sid))
       }
     }
   }
@@ -79,7 +76,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       sessionId getOrElse {
         val reply = createReq()
         log.info(s"Consul session created id=${reply.ID}")
-        listeners foreach { l => muted[Unit]("Listener.call", () => l.start(reply.ID)) }
+        listeners foreach { l => muted(() => l.start(reply.ID)) }
         sessionId = Some(reply.ID)
       }
     }
@@ -89,8 +86,8 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       if (sessionId.isDefined) {
         sessionId foreach { id =>
-          listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
-          muted("Session.destroy", () => destroyReq(id))
+          listeners foreach { l => muted(() => l.stop(id)) }
+          muted(() => destroyReq(id))
           log.info(s"Consul session removed id=$id")
         }
         sessionId = None
@@ -98,7 +95,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def muted[T](name: String, f: () => T): Try[T] = {
+  private[this] def muted[T](f: () => T): Try[T] = {
     Try{ f() } match {
       case Return(value) =>
         Return(value)
@@ -157,7 +154,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     req.setContentTypeJson()
     val reply = Await.result(client(req))
     reply.getStatusCode() match {
-      case 200 => parse(reply.contentString).extract[CreateReply]
+      case 200 => ConsulKV.decodeSessionCreate(reply)
       case _   => throw ConsulErrors.badResponse(reply)
     }
   }
@@ -184,13 +181,13 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
-  private[this] def infoReq(id: SessionId): Option[InfoReply] = {
+  private[this] def infoReq(id: SessionId): Option[ConsulKV.SessionGet] = {
     val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
     req.setContentTypeJson()
     val reply = Await.result(client(req))
     reply.getStatusCode() match {
       case 200 =>
-        Option(parse(reply.contentString).extract[InfoReply])
+        Option(ConsulKV.decodeSessionGet(reply))
       case 404 =>
         None
       case _   => throw ConsulErrors.badResponse(reply)
@@ -208,7 +205,4 @@ object ConsulSession {
   }
 
   case class CreateOptions(name: String, ttl: Int = 45, interval: Int = 20, lockDelay: Int = 10)
-
-  case class CreateReply(ID: SessionId)
-  case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
 }
