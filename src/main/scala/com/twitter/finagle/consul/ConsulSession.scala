@@ -207,7 +207,7 @@ object ConsulSession {
     def tick(id: SessionId): Unit = {}
   }
 
-  case class CreateOptions(name: String, ttl: Int = 12, interval: Int = 5, lockDelay: Int = 12)
+  case class CreateOptions(name: String, ttl: Int = 45, interval: Int = 20, lockDelay: Int = 10)
 
   case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
