@@ -50,6 +50,6 @@ class ConsulServiceSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
       session1.stop()
     }
 
-    Thread.sleep(2000)
+    Thread.sleep(1000)
   }
 }

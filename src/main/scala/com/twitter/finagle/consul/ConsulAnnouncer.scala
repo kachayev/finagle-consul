@@ -18,14 +18,12 @@ class ConsulAnnouncer extends Announcer {
     val listener = new SessionListener(service, q.name, address, ia.getPort, q.tags)
 
     session.addListener(listener)
-    session.incServices()
     session.start()
 
     Future {
       new Announcement {
         def unannounce() = Future[Unit] {
           session.delListener(listener)
-          session.decServices()
           session.stop()
         }
       }

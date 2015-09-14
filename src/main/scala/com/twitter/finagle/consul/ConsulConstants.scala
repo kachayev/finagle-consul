@@ -11,4 +11,8 @@ trait ConsulConstants {
   val SERVICE_CREATE_PATH  = "/v1/kv/finagle/services/%s/%s?acquire=%s"
   val SERVICE_DESTROY_PATH = "/v1/kv/finagle/services/%s/%s"
   val SERVICE_LIST_PATH    = "/v1/kv/finagle/services/%s?recurse"
+
+  val LEADER_ACQUIRE_PATH  = "/v1/kv/finagle/leader/%s?acquire=%s"
+  val LEADER_RELEASE_PATH  = "/v1/kv/finagle/leader/%s?release=%s"
+  val LEADER_CHECK_PATH    = "/v1/kv/finagle/leader/%s"
 }

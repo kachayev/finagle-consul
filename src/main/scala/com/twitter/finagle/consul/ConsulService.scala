@@ -42,7 +42,7 @@ class ConsulService(client: HttpxService[Request, Response]) extends ConsulConst
     log.info(s"Consul service removed name=$name session=$sessionId")
   }
 
-  private def replyToFinagleService(reply: FinagleServiceReply): FinagleService = {
+  private def replyToFinagleService(reply: ConsulKV.Key): FinagleService = {
     val encodedService = new String(Base64.getDecoder.decode(reply.Value))
     parse(encodedService).extract[FinagleService]
   }
@@ -54,8 +54,8 @@ class ConsulService(client: HttpxService[Request, Response]) extends ConsulConst
     client(req) flatMap { reply =>
       reply.getStatusCode() match {
         case 200 =>
-          val srv = parse(reply.contentString).extract[List[FinagleServiceReply]] map replyToFinagleService
-          Future.value(srv)
+          val svs = ConsulKV.decodeKeys(reply) map replyToFinagleService
+          Future.value(svs)
         case 404 =>
           Future.value(List.empty)
         case _ =>
@@ -77,6 +77,4 @@ object ConsulService {
 
   case class FinagleService(id: ConsulSession.SessionId, name: String, address: String, port: Int, tags: Set[String])
     extends Service
-
-  case class FinagleServiceReply(CreateIndex: Int, ModifyIndex: Int, LockIndex: Int, Key: String, Flags: Int, Value: String)
 }

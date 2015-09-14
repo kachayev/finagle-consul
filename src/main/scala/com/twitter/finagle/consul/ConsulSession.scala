@@ -2,7 +2,7 @@ package com.twitter.finagle.consul
 
 import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.logging.Logger
+import java.util.logging.{Level, Logger}
 
 import com.twitter.finagle.Service
 import com.twitter.finagle.httpx.{Method, Request, Response}
@@ -21,7 +21,6 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   private[this]   var heartbeat     = Option.empty[Thread]
   private[this]   var listeners     = List.empty[Listener]
   private[this]   val inChannel     = new LinkedBlockingQueue[Boolean]()
-  private[this]   val servicesCount = new AtomicInteger(0)
 
   def start(): Unit = {
     heartbeat.getOrElse {
@@ -30,25 +29,11 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   def stop(): Unit = {
-    if (servicesCount.get == 0) {
-      heartbeat foreach { th =>
-        inChannel.offer(true)
-        th.join()
-        heartbeat = None
-      }
-    } else {
-      log.info(s"Consul session reject close request, ${servicesCount.get} live services")
+    heartbeat foreach { th =>
+      inChannel.offer(true)
+      th.join()
+      heartbeat = None
     }
-  }
-
-  def decServices(): Unit = {
-    val newVal = servicesCount.decrementAndGet
-    log.fine(s"Consul session $newVal live services")
-  }
-
-  def incServices(): Unit = {
-    val newVal = servicesCount.incrementAndGet
-    log.fine(s"Consul session $newVal live services")
   }
 
   def isOpen = sessionId.isDefined
@@ -61,6 +46,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       listeners = listeners ++ List(listener)
     }
+    sessionId foreach listener.start
   }
 
   def delListener(listener: Listener): Unit = {
@@ -80,14 +66,21 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     }
   }
 
+  private[consul] def tickListeners(): Unit = {
+    sessionId foreach { sid =>
+      listeners foreach { listener =>
+        muted("Listener.tick", () => listener.tick(sid))
+      }
+    }
+  }
+
   private[consul] def open(): Unit = {
     synchronized {
       sessionId getOrElse {
         val reply = createReq()
         log.info(s"Consul session created id=${reply.ID}")
-        sessionId = Some(reply.ID)
         listeners foreach { l => muted[Unit]("Listener.call", () => l.start(reply.ID)) }
-        sessionId
+        sessionId = Some(reply.ID)
       }
     }
   }
@@ -96,9 +89,9 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
     synchronized {
       if (sessionId.isDefined) {
         sessionId foreach { id =>
+          listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
           muted("Session.destroy", () => destroyReq(id))
           log.info(s"Consul session removed id=$id")
-          listeners foreach { l => muted[Unit]("Listener.call", () => l.stop(id)) }
         }
         sessionId = None
       }
@@ -110,7 +103,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
       case Return(value) =>
         Return(value)
       case Throw(e) =>
-        log.severe(s"$name - ${e.getClass} - ${e.getMessage}")
+        log.log(Level.SEVERE, e.getMessage, e)
         Throw(e)
     }
   }
@@ -143,12 +136,13 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
             case false if me.isOpen =>
               me.log.fine("Consul heartbeat tick")
               me.renew()
+              me.tickListeners()
             case _ =>
               me.log.info(s"Consul session closed, reopen")
           }
         } catch {
           case NonFatal(e) =>
-            log.info(s"${e.getClass.getName}: ${e.getMessage}")
+            log.log(Level.SEVERE, e.getMessage, e)
             cooldown = true
         }
       }
@@ -210,9 +204,10 @@ object ConsulSession {
   trait Listener {
     def start(id: SessionId) : Unit
     def stop(id: SessionId) : Unit
+    def tick(id: SessionId): Unit = {}
   }
 
-  case class CreateOptions(name: String, ttl: Int = 10, interval: Int = 10, lockDelay: Int = 10)
+  case class CreateOptions(name: String, ttl: Int = 12, interval: Int = 5, lockDelay: Int = 12)
 
   case class CreateReply(ID: SessionId)
   case class InfoReply(LockDelay: String, Checks: List[String], Node: String, ID: String, CreateIndex: Int)
