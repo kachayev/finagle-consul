@@ -1,4 +1,4 @@
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 organization := "com.twitter.finagle"
 
@@ -11,9 +11,8 @@ resolvers += "twttr" at "http://maven.twttr.com/"
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 
 libraryDependencies ++= Seq(
-  // twitter infrastructure:
-  "com.twitter" %% "finagle-core" % "6.24.0",
-  "com.twitter" %% "twitter-server" % "1.9.0",
-  // json processor:
-  "org.json4s" %% "json4s-jackson" % "3.2.11"
+  "com.twitter"    %% "finagle-core"    % "6.28.0",
+  "com.twitter"    %% "finagle-httpx"   % "6.28.0",
+  "org.json4s"     %% "json4s-jackson"  % "3.2.11",
+  "org.scalatest"  %% "scalatest"       % "2.2.4"   % "test"
 )
