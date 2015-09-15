@@ -8,7 +8,7 @@ class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
   val client  = Httpx.newService("localhost:8500")
 
   "open/reopen/close" in {
-    val session = new ConsulSession(client, ConsulSession.CreateOptions("spec", ttl = 10, interval = 1, lockDelay = 1))
+    val session = new ConsulSession(client, ConsulSession.Options("spec", ttl = 10, interval = 1, lockDelay = 1))
 
     try {
       session.start()
@@ -26,7 +26,7 @@ class ConsulSessionSpec extends WordSpecLike with Matchers with BeforeAndAfterAl
   }
 
   "heartbeat lost" in {
-    val session = new ConsulSession(client, ConsulSession.CreateOptions("spec", ttl = 10, interval = 30, lockDelay = 1))
+    val session = new ConsulSession(client, ConsulSession.Options("spec", ttl = 10, interval = 30, lockDelay = 1))
 
     try {
       session.start()

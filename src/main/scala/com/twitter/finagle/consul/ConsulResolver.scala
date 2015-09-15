@@ -16,10 +16,10 @@ class ConsulResolver extends Resolver {
 
   private[this] def addresses(hosts: String, name: String, digest: String) : (String, Option[Set[SocketAddress]]) = {
     val services  = ConsulServiceFactory.getService(hosts).list(name)
-    val newDigest = services.map(_.id).sorted.mkString(",")
+    val newDigest = services.map(_.ID).sorted.mkString(",")
     if (newDigest != digest) {
       val newAddrs = services.map{ s =>
-        new InetSocketAddress(s.address, s.port).asInstanceOf[SocketAddress]
+        new InetSocketAddress(s.Address, s.Port).asInstanceOf[SocketAddress]
       }.toSet
       log.info(s"Consul resolver got addresses=$newAddrs")
       (newDigest, Some(newAddrs))

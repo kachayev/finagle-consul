@@ -1,14 +1,13 @@
 package com.twitter.finagle.consul
 
-import java.util.Base64
-
-import com.twitter.finagle.httpx.{Method, Request, Response}
-import com.twitter.finagle.{Service => HttpxService}
-import com.twitter.util.{Future, Await}
 import java.util.logging.Logger
-import client.KeyService
 
-class ConsulService(httpClient: HttpxService[Request, Response]) extends ConsulConstants {
+import com.twitter.finagle.consul.client.KeyService
+import com.twitter.finagle.httpx.{Request, Response}
+import com.twitter.finagle.{Service => HttpxService}
+import com.twitter.util.Await
+
+class ConsulService(httpClient: HttpxService[Request, Response]) {
 
   import ConsulService._
 
@@ -16,17 +15,17 @@ class ConsulService(httpClient: HttpxService[Request, Response]) extends ConsulC
   private val client = KeyService(httpClient)
 
   def list(name: String): List[Service] = {
-    val reply = Await.result(client.getJsonSet[FinagleService](lockName(name)))
+    val reply = Await.result(client.getJsonSet[Service](lockName(name)))
     reply.map(_.Value).toList
   }
 
-  private[consul] def create(service: FinagleService): Unit = {
-    val reply = client.acquireJson[FinagleService](lockName(service.id, service.name), service, service.id)
+  private[consul] def create(service: Service): Unit = {
+    val reply = client.acquireJson[Service](lockName(service.ID, service.Service), service, service.ID)
     Await.result(reply)
-    log.info(s"Consul service registered name=${service.name} session=${service.id} addr=${service.address}:${service.port}")
+    log.info(s"Consul service registered name=${service.Service} session=${service.ID} addr=${service.Address}:${service.Port}")
   }
 
-  private[consul] def destroy(session: ConsulSession.SessionId, name: String): Unit = {
+  private[consul] def destroy(session: String, name: String): Unit = {
     val reply = client.delete(lockName(session, name))
     Await.result(reply)
     log.info(s"Consul service deregistered name=$name session=$session")
@@ -42,15 +41,5 @@ class ConsulService(httpClient: HttpxService[Request, Response]) extends ConsulC
 }
 
 object ConsulService {
-
-  sealed trait Service {
-    val id:      String
-    val name:    String
-    val address: String
-    val port:    Int
-    val tags:    Set[String]
-  }
-
-  case class FinagleService(id: ConsulSession.SessionId, name: String, address: String, port: Int, tags: Set[String], dc: Option[String] = None, endpoints: Set[String] = Set.empty)
-    extends Service
+  case class Service(ID: String, Service: String, Address: String, Port: Int, Tags: Set[String], dc: Option[String] = None)
 }

@@ -1,11 +1,9 @@
 package com.twitter.finagle.consul
 
-import scala.collection.mutable
-
 object ConsulSessionFactory {
-  val defaultSessionOptions = ConsulSession.CreateOptions(name = "finagle.default")
+  val defaultSessionOptions = ConsulSession.Options(name = "finagle.default")
 
-  def getSession(hosts: String, opts: ConsulSession.CreateOptions): ConsulSession = {
+  def getSession(hosts: String, opts: ConsulSession.Options): ConsulSession = {
     val newSession = new ConsulSession(
       ConsulClientFactory.getClient(hosts),
       opts

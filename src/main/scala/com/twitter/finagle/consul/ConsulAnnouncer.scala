@@ -50,13 +50,13 @@ object ConsulAnnouncer {
   class SessionListener(service: ConsulService, name: String, address: String, port: Int, tags: Set[String])
     extends ConsulSession.Listener {
 
-    def start(sid: ConsulSession.SessionId): Unit = {
-      val newSrv = ConsulService.FinagleService(sid, name, address, port, tags)
+    def start(session: String): Unit = {
+      val newSrv = ConsulService.Service(session, name, address, port, tags)
       service.create(newSrv)
     }
 
-    def stop(sid: ConsulSession.SessionId): Unit = {
-      service.destroy(sid, name)
+    def stop(session: String): Unit = {
+      service.destroy(session, name)
     }
   }
 }

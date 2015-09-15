@@ -7,7 +7,7 @@ class ConsulLeaderElectionSpec extends WordSpecLike with Matchers with BeforeAnd
   import ConsulLeaderElection.Status
 
   "leader election" in {
-    val opts     = ConsulSession.CreateOptions(name = "test", ttl = 10, interval = 1, lockDelay = 10)
+    val opts     = ConsulSession.Options(name = "test", ttl = 10, interval = 1, lockDelay = 10)
     val session0 = ConsulSessionFactory.getSession("localhost:8500", opts)
     val session1 = ConsulSessionFactory.getSession("localhost:8500", opts)
     val client   = ConsulClientFactory.getClient("localhost:8500")
@@ -16,7 +16,7 @@ class ConsulLeaderElectionSpec extends WordSpecLike with Matchers with BeforeAnd
 
     try {
       leader0.start()
-      Thread.sleep(1000)
+      Thread.sleep(2000)
       assert(leader0.getStatus == Status.Leader)
 
       leader1.start()

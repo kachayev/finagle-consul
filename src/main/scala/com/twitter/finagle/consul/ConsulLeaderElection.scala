@@ -7,8 +7,7 @@ import com.twitter.finagle.consul.client.KeyService
 import com.twitter.finagle.httpx.{Request, Response}
 import com.twitter.util._
 
-class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], session: ConsulSession)
-  extends ConsulConstants {
+class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], session: ConsulSession) {
 
   import ConsulLeaderElection.Status._
 
@@ -19,9 +18,9 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
   private val log    = Logger.getLogger(getClass.getName)
 
   private val listener = new Object with ConsulSession.Listener {
-    def start(id: ConsulSession.SessionId): Unit =         self.checkOrAcquireLock(id)
-    def stop(id: ConsulSession.SessionId): Unit =          self.releaseLock(id)
-    override def tick(id: ConsulSession.SessionId): Unit = self.checkOrAcquireLock(id)
+    def start(session: String): Unit =         self.checkOrAcquireLock(session)
+    def stop(session: String): Unit =          self.releaseLock(session)
+    override def tick(session: String): Unit = self.checkOrAcquireLock(session)
   }
 
   def start(): Unit = {
@@ -36,7 +35,7 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
 
   def getStatus = status
 
-  private def checkOrAcquireLock(session: ConsulSession.SessionId): Unit = {
+  private def checkOrAcquireLock(session: String): Unit = {
     val newStatus =
       status match {
         case Leader  => checkLock(session)
@@ -48,7 +47,7 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
     }
   }
 
-  private def logNewStatus(session: ConsulSession.SessionId, newStatus: Value): Unit = {
+  private def logNewStatus(session: String, newStatus: Value): Unit = {
     if (newStatus == Leader) {
       log.info(s"Consul become a leader name=$name session=$session")
     }
@@ -57,7 +56,7 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
     }
   }
 
-  private def checkLock(session: ConsulSession.SessionId): Value = {
+  private def checkLock(session: String): Value = {
     val reply = Await.result(client.get(lockName).liftToTry)
     reply match {
       case Return(Some(value)) if value.Session.contains(session) =>
@@ -70,7 +69,7 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
     }
   }
 
-  private def acquireLock(session: ConsulSession.SessionId): Value = {
+  private def acquireLock(session: String): Value = {
     val reply = Await.result(client.acquire(lockName, session).liftToTry)
     reply match {
       case Return(true) =>
@@ -83,7 +82,7 @@ class ConsulLeaderElection(name: String, httpClient: Service[Request,Response], 
     }
   }
 
-  private def releaseLock(session: ConsulSession.SessionId): Unit = {
+  private def releaseLock(session: String): Unit = {
     if (status == Leader) {
       val reply = Await.result(client.release(lockName, session).liftToTry)
       reply match {

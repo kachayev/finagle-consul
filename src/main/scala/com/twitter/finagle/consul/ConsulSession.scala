@@ -4,20 +4,20 @@ import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
 import java.util.logging.{Level, Logger}
 
 import com.twitter.finagle.Service
-import com.twitter.finagle.httpx.{Method, Request, Response}
+import com.twitter.finagle.consul.client.SessionService
+import com.twitter.finagle.httpx.{Request, Response}
 import com.twitter.util.{Await, NonFatal, Return, Throw, Try}
 
-class ConsulSession(client: Service[Request, Response], opts: ConsulSession.CreateOptions) extends ConsulConstants {
+class ConsulSession(httpClient: Service[Request, Response], opts: ConsulSession.Options) {
 
   import ConsulSession._
 
-  private[this] implicit val format = org.json4s.DefaultFormats
-
   val log = Logger.getLogger(getClass.getName)
-  private[consul] var sessionId     = Option.empty[SessionId]
+  private[consul] var sessionId     = Option.empty[String]
   private[this]   var heartbeat     = Option.empty[Thread]
   private[this]   var listeners     = List.empty[Listener]
   private[this]   val inChannel     = new LinkedBlockingQueue[Boolean]()
+  private[this]   val client        = SessionService(httpClient)
 
   def start(): Unit = {
     heartbeat.getOrElse {
@@ -35,7 +35,7 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
 
   def isOpen = sessionId.isDefined
 
-  def info(): Option[ConsulKV.SessionGet] = {
+  def info(): Option[SessionService.SessionResponse] = {
     sessionId flatMap infoReq
   }
 
@@ -53,13 +53,12 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   private[consul] def renew(): Unit = {
-    sessionId map { sid =>
+    sessionId foreach { sid =>
       val reply = renewReq(sid)
-      if(!reply) {
+      if(reply.isEmpty) {
         log.info(s"Consul session not found id=$sid")
         close()
       }
-      reply
     }
   }
 
@@ -148,61 +147,34 @@ class ConsulSession(client: Service[Request, Response], opts: ConsulSession.Crea
   }
 
   private[this] def createReq() = {
-    val req  = Request(Method.Put, SESSION_CREATE_PATH)
-    val body = s"""{ "LockDelay": "${opts.lockDelay}s", "Name": "${opts.name}", "Behavior": "delete", "TTL": "${opts.ttl}s" }"""
-    req.write(body)
-    req.setContentTypeJson()
-    val reply = Await.result(client(req))
-    reply.getStatusCode() match {
-      case 200 => ConsulKV.decodeSessionCreate(reply)
-      case _   => throw ConsulErrors.badResponse(reply)
-    }
+    val createRequest = SessionService.CreateRequest(
+      LockDelay = s"${opts.lockDelay}s", Name = opts.name, Behavior = "delete", TTL = s"${opts.ttl}s"
+    )
+    Await.result(client.create(createRequest))
   }
 
-  private[this] def destroyReq(id: SessionId): Boolean = {
-    val req = Request(Method.Put, SESSION_DESTROY_PATH.format(id))
-    req.setContentTypeJson()
-    val reply = Await.result(client(req))
-    reply.getStatusCode() match {
-      case 200 => true
-      case 404 => false
-      case e   => throw ConsulErrors.badResponse(reply)
-    }
+  private[this] def destroyReq(session: String): Unit = {
+    Await.result(client.destroy(session))
   }
 
-  private[this] def renewReq(id: SessionId): Boolean = {
-    val req = Request(Method.Put, SESSION_RENEW_PATH.format(id))
-    req.setContentTypeJson()
-    val reply = Await.result(client(req))
-    reply.getStatusCode() match {
-      case 200 => true
-      case 404 => false
-      case _   => throw ConsulErrors.badResponse(reply)
-    }
+  private[this] def renewReq(session: String): Option[SessionService.SessionResponse] = {
+    Await.result(client.renew(session))
   }
 
-  private[this] def infoReq(id: SessionId): Option[ConsulKV.SessionGet] = {
-    val req = Request(Method.Get, SESSION_INFO_PATH.format(id))
-    req.setContentTypeJson()
-    val reply = Await.result(client(req))
-    reply.getStatusCode() match {
-      case 200 =>
-        Option(ConsulKV.decodeSessionGet(reply))
-      case 404 =>
-        None
-      case _   => throw ConsulErrors.badResponse(reply)
-    }
+  private[this] def infoReq(session: String): Option[SessionService.SessionResponse] = {
+    Await.result(client.info(session))
   }
 }
 
 object ConsulSession {
-  type SessionId = String
+
+  val SESSION_HEARTBEAT_COOLDOWN = 3000
 
   trait Listener {
-    def start(id: SessionId) : Unit
-    def stop(id: SessionId) : Unit
-    def tick(id: SessionId): Unit = {}
+    def start(session: String) : Unit
+    def stop(session:  String) : Unit
+    def tick(session:  String) : Unit = {}
   }
 
-  case class CreateOptions(name: String, ttl: Int = 45, interval: Int = 20, lockDelay: Int = 10)
+  case class Options(name: String, ttl: Int = 45, interval: Int = 20, lockDelay: Int = 10)
 }
