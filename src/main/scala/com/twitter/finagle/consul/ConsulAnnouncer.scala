@@ -13,8 +13,8 @@ class ConsulAnnouncer extends Announcer {
 
   def announce(ia: InetSocketAddress, hosts: String, q: ConsulQuery): Future[Announcement] = {
     val address  = ia.getAddress.getHostAddress
-    val session  = ConsulSessionFactory.getSession(hosts)
-    val service  = new ConsulService(ConsulClientFactory.getClient(hosts))
+    val session  = ConsulSession.get(hosts)
+    val service  = new ConsulService(ConsulHttpClientFactory.getClient(hosts))
     val listener = new SessionListener(service, q.name, address, ia.getPort, q.tags)
 
     session.addListener(listener)

@@ -15,13 +15,13 @@ class ConsulResolver extends Resolver {
   private[this] val futurePool = FuturePool.unboundedPool
 
   private[this] def addresses(hosts: String, name: String, digest: String) : (String, Option[Set[SocketAddress]]) = {
-    val services  = ConsulServiceFactory.getService(hosts).list(name)
+    val services  = ConsulService.get(hosts).list(name)
     val newDigest = services.map(_.ID).sorted.mkString(",")
     if (newDigest != digest) {
       val newAddrs = services.map{ s =>
         new InetSocketAddress(s.Address, s.Port).asInstanceOf[SocketAddress]
       }.toSet
-      log.info(s"Consul resolver got addresses=$newAddrs")
+      log.info(s"Consul resolver addresses=$newAddrs")
       (newDigest, Some(newAddrs))
     } else {
       (newDigest, None)

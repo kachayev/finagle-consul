@@ -177,4 +177,16 @@ object ConsulSession {
   }
 
   case class Options(name: String, ttl: Int = 45, interval: Int = 20, lockDelay: Int = 10)
+
+  val defaultSessionOptions = ConsulSession.Options(name = "finagle.default")
+
+  def get(hosts: String, opts: ConsulSession.Options): ConsulSession = {
+    val newSession = new ConsulSession(
+      ConsulHttpClientFactory.getClient(hosts),
+      opts
+    )
+    newSession
+  }
+
+  def get(hosts: String): ConsulSession = get(hosts, defaultSessionOptions)
 }

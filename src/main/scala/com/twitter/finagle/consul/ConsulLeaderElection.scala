@@ -104,8 +104,8 @@ object ConsulLeaderElection {
   }
 
   def get(name: String, hosts: String): ConsulLeaderElection = {
-    val client  = ConsulClientFactory.getClient(hosts)
-    val session = ConsulSessionFactory.getSession(hosts)
+    val client  = ConsulHttpClientFactory.getClient(hosts)
+    val session = ConsulSession.get(hosts)
     val leader  = new ConsulLeaderElection(name, client, session)
     leader.start()
     leader

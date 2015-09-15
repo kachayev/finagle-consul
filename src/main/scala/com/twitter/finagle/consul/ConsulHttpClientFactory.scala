@@ -5,7 +5,7 @@ import com.twitter.finagle.{Httpx, Service}
 
 import scala.collection.mutable
 
-object ConsulClientFactory {
+object ConsulHttpClientFactory {
 
   type Client = Service[Request, Response]
 

@@ -7,6 +7,8 @@ import com.twitter.finagle.httpx.{Request, Response}
 import com.twitter.finagle.{Service => HttpxService}
 import com.twitter.util.Await
 
+import scala.collection.mutable
+
 class ConsulService(httpClient: HttpxService[Request, Response]) {
 
   import ConsulService._
@@ -42,4 +44,16 @@ class ConsulService(httpClient: HttpxService[Request, Response]) {
 
 object ConsulService {
   case class Service(ID: String, Service: String, Address: String, Port: Int, Tags: Set[String], dc: Option[String] = None)
+
+  private val services: mutable.Map[String, ConsulService] = mutable.Map()
+
+  def get(hosts: String): ConsulService = {
+    synchronized {
+      val service = services.getOrElseUpdate(hosts, {
+        val newClient = ConsulHttpClientFactory.getClient(hosts)
+        new ConsulService(newClient)
+      })
+      service
+    }
+  }
 }
