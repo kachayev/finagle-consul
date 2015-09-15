@@ -76,6 +76,28 @@ class KeyService(httpClient: HttpxService[HttpRequest, HttpResponse]) {
     }
   }
 
+  def acquire(path: String, session: String): Future[Boolean] = {
+    val httpRequest = HttpRequest(Method.Put, keyName(path, acquire = Some(session)))
+    httpRequest.setContentTypeJson()
+    httpClient(httpRequest) flatMap { reply =>
+      reply.getStatusCode() match {
+        case 200 => Future.value(decodeHttpResponseAsSingleBoolean(reply))
+        case _   => Future.exception(ConsulErrors.badResponse(reply))
+      }
+    }
+  }
+
+  def release(path: String, session: String): Future[Boolean] = {
+    val httpRequest = HttpRequest(Method.Put, keyName(path, release = Some(session)))
+    httpRequest.setContentTypeJson()
+    httpClient(httpRequest) flatMap { reply =>
+      reply.getStatusCode() match {
+        case 200 => Future.value(decodeHttpResponseAsSingleBoolean(reply))
+        case _   => Future.exception(ConsulErrors.badResponse(reply))
+      }
+    }
+  }
+
   def acquireJson[A <: AnyRef](path: String, body: A, session: String): Future[Boolean] = {
     val httpRequest = HttpRequest(Method.Put, keyName(path, acquire = Some(session)))
     httpRequest.setContentTypeJson()
