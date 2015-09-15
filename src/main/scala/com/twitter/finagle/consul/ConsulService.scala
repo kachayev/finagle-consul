@@ -5,63 +5,39 @@ import java.util.Base64
 import com.twitter.finagle.httpx.{Method, Request, Response}
 import com.twitter.finagle.{Service => HttpxService}
 import com.twitter.util.{Future, Await}
-import org.json4s.jackson.JsonMethods._
-import org.json4s.jackson.Serialization
 import java.util.logging.Logger
+import client.KeyService
 
-class ConsulService(client: HttpxService[Request, Response]) extends ConsulConstants {
+class ConsulService(httpClient: HttpxService[Request, Response]) extends ConsulConstants {
 
   import ConsulService._
 
-  private[this] implicit val format = org.json4s.DefaultFormats
-  private[this] val log = Logger.getLogger(getClass.getName)
+  private val log    = Logger.getLogger(getClass.getName)
+  private val client = KeyService(httpClient)
 
   def list(name: String): List[Service] = {
-    val finagleServices = getFinagleServices(name)
-    Await.result(finagleServices)
+    val reply = Await.result(client.getJsonSet[FinagleService](lockName(name)))
+    reply.map(_.Value).toList
   }
 
   private[consul] def create(service: FinagleService): Unit = {
-    val req = Request(Method.Put, SERVICE_CREATE_PATH.format(service.name, service.id, service.id))
-    req.setContentTypeJson()
-    req.write(Serialization.write(service))
-    val reply = Await.result(client(req))
-    if (reply.getStatusCode != 200) {
-      throw ConsulErrors.badResponse(reply)
-    }
-    log.info(s"Consul service created name=${service.name} session=${service.id} addr=${service.address}:${service.port}")
+    val reply = client.acquireJson[FinagleService](lockName(service.id, service.name), service, service.id)
+    Await.result(reply)
+    log.info(s"Consul service registered name=${service.name} session=${service.id} addr=${service.address}:${service.port}")
   }
 
-  private[consul] def destroy(sessionId: ConsulSession.SessionId, name: String): Unit = {
-    val req = Request(Method.Delete, SERVICE_DESTROY_PATH.format(name, sessionId))
-    req.setContentTypeJson()
-    val reply = Await.result(client(req))
-    if (reply.getStatusCode != 200) {
-      throw ConsulErrors.badResponse(reply)
-    }
-    log.info(s"Consul service removed name=$name session=$sessionId")
+  private[consul] def destroy(session: ConsulSession.SessionId, name: String): Unit = {
+    val reply = client.delete(lockName(session, name))
+    Await.result(reply)
+    log.info(s"Consul service deregistered name=$name session=$session")
   }
 
-  private def replyToFinagleService(reply: ConsulKV.Key): FinagleService = {
-    val encodedService = new String(Base64.getDecoder.decode(reply.Value))
-    parse(encodedService).extract[FinagleService]
+  private def lockName(name: String): String = {
+    s"finagle/services/$name"
   }
 
-  private def getFinagleServices(name: String): Future[List[FinagleService]] = {
-    val req = Request(Method.Get, SERVICE_LIST_PATH.format(name))
-    req.setContentTypeJson()
-
-    client(req) flatMap { reply =>
-      reply.getStatusCode() match {
-        case 200 =>
-          val svs = ConsulKV.decodeKeys(reply) map replyToFinagleService
-          Future.value(svs)
-        case 404 =>
-          Future.value(List.empty)
-        case _ =>
-          Future.exception(ConsulErrors.badResponse(reply))
-      }
-    }
+  private def lockName(session: String, name: String): String = {
+    lockName(name) + s"/$session"
   }
 }
 
