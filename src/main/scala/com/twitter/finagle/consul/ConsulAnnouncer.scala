@@ -76,6 +76,7 @@ class ConsulAnnouncer extends Announcer {
 
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.PUT, registerPath)
     req.setContent(ChannelBuffers.copiedBuffer(payload, UTF_8))
+    req.headers().add("Host", "localhost:8500")
     client.toService(req) map f
   }
 
