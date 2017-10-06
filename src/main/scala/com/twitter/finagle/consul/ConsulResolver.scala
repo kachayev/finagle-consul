@@ -61,6 +61,7 @@ class ConsulResolver extends Resolver {
   def readCatalog(hosts: String, q: ConsulQuery): Future[Addresses] = {
     val client = Http.newClient(hosts)
     val req = new DefaultHttpRequest(HTTP_1_1, HttpMethod.GET, catalogPath(q))
+    req.headers().add("Host", "localhost:8500")
     // xxx: timeout? 
     // xxx: error?
     client.toService(req) map { resp =>
